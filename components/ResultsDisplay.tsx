@@ -126,6 +126,14 @@ export default function ResultsDisplay({ results, isCalculating }: ResultsDispla
         'Hosting Users Cost (INR)': combination.breakdown.hostingUsersCostINR,
         'Hosting Calls Cost (INR)': combination.breakdown.hostingCallsCostINR,
         'Hosting Total (INR)': combination.breakdown.hostingCostINR,
+        // Storage detailed breakdown
+        'Storage Option': combination.storageOption.label,
+        'Storage Provider': combination.storageOption.provider,
+        'Storage Type': combination.storageOption.storageType || '',
+        'Storage Replication': combination.storageOption.replication || '',
+        'Storage Cost per DB (USD)': combination.storageOption.monthlyCostUSD,
+        'Storage Total Cost (USD)': combination.breakdown.storageCostUSD,
+        'Storage Total Cost (INR)': combination.breakdown.storageCostINR,
         // Miscellaneous
         'Misc Expenses (INR)': combination.breakdown.miscExpensesINR,
         'Warnings': combination.warnings.join('; '),
@@ -323,7 +331,7 @@ export default function ResultsDisplay({ results, isCalculating }: ResultsDispla
 
       <div className="flex-1 overflow-y-auto pr-2 min-h-0">
         {filteredResults.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="space-y-4">
             {filteredResults.map((combination, index) => (
           <CombinationCard key={combination.id} combination={combination} rank={index + 1} />
         ))}
@@ -395,14 +403,18 @@ function CombinationCard({ combination, rank }: { combination: Combination; rank
       </div>
 
       <div className="relative z-10">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg">
-            <span className="text-[0.9rem] font-extrabold text-white">#{rank}</span>
+      {/* Horizontal Layout */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+        {/* Rank Badge */}
+        <div className="flex-shrink-0">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg">
+            <span className="text-[1rem] font-extrabold text-white">#{rank}</span>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-[1.5rem] font-extrabold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+
+        {/* Total Cost */}
+        <div className="flex-shrink-0 text-center sm:text-left min-w-[140px]">
+          <div className="text-[1.3rem] font-extrabold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
             {formatINR(combination.totalCostINR)}
           </div>
           <div className="text-[0.7rem] font-semibold text-gray-500 dark:text-gray-400 mt-1">
@@ -410,48 +422,63 @@ function CombinationCard({ combination, rank }: { combination: Combination; rank
           </div>
           <div className="text-[0.6rem] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mt-0.5">per month</div>
         </div>
-      </div>
 
-      <div className="space-y-3 text-[0.7rem] mb-4">
-        <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-900/30 backdrop-blur-sm">
-          <span className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Avatar</span>
-          <div className="text-right">
-            <span className="font-bold text-gray-900 dark:text-white">
+        {/* Divider */}
+        <div className="hidden sm:block flex-shrink-0 w-px h-16 bg-gray-200 dark:bg-gray-700"></div>
+
+        {/* Service Details - Horizontal Grid */}
+        <div className="flex-1 w-full sm:w-auto grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <div className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Avatar</div>
+            <div className="font-bold text-gray-900 dark:text-white text-[0.75rem]">
               {combination.avatarPlan.name}
-            </span>
+            </div>
             {combination.avatarPlan.isAnnualOnly && (
-              <div className="text-[0.55rem] text-blue-600 dark:text-blue-400 font-medium mt-0.5">
-                Annual Commitment
+              <div className="text-[0.55rem] text-blue-600 dark:text-blue-400 font-medium">
+                Annual
               </div>
             )}
           </div>
+          <div className="space-y-1">
+            <div className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Voice</div>
+            <div className="font-bold text-gray-900 dark:text-white text-[0.75rem]">
+              {combination.voiceAgent
+                ? `${combination.voiceAgent.name}${combination.voiceAgent.concurrency ? ` (${combination.voiceAgent.concurrency})` : ''}`
+                : 'Inbuilt'}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Hosting</div>
+            <div className="font-bold text-gray-900 dark:text-white text-[0.75rem]">
+              {combination.hostingOption.name}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Storage</div>
+            <div className="font-bold text-gray-900 dark:text-white text-[0.75rem]">
+              {combination.storageOption.label}
+            </div>
+            <div className="text-[0.55rem] text-gray-500 dark:text-gray-400">
+              {formatUSD(combination.breakdown.storageCostUSD)}/mo
+            </div>
+          </div>
         </div>
-        <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-900/30 backdrop-blur-sm">
-          <span className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Voice</span>
-          <span className="font-bold text-gray-900 dark:text-white">
-            {combination.voiceAgent
-              ? `${combination.voiceAgent.name}${combination.voiceAgent.concurrency ? ` (${combination.voiceAgent.concurrency} conc.)` : ''}`
-              : 'Inbuilt (Avatar)'}
-          </span>
-        </div>
-        <div className="flex justify-between items-center py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-900/30 backdrop-blur-sm">
-          <span className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Hosting</span>
-          <span className="font-bold text-gray-900 dark:text-white">
-            {combination.hostingOption.name}
-          </span>
+
+        {/* View Details Button */}
+        <div className="flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="flex items-center justify-center text-[0.7rem] font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-2 rounded-xl transition-all duration-200 w-full sm:min-w-[140px]">
+            <span className="uppercase tracking-wider text-[0.6rem] mr-2">
+              {showDetails ? 'Hide' : 'View'} Details
+            </span>
+            {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-800/50">
-        <div className="w-full flex items-center justify-between text-[0.7rem] font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30 px-4 py-3 rounded-xl transition-all duration-200">
-          <span className="uppercase tracking-wider text-[0.6rem]">
-            {showDetails ? 'Hide' : 'View'} Detailed Breakdown
-          </span>
-          {showDetails ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-        </div>
-
-        {showDetails && (
-          <div className="mt-4 space-y-4 text-[0.6rem]">
+      {/* Expandable Details Section */}
+      {showDetails && (
+        <div className="mt-6 pt-6 border-t border-gray-200/50 dark:border-gray-800/50">
+          <div className="space-y-4 text-[0.6rem]">
             {/* Avatar Cost Breakdown */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black rounded-xl p-4 border border-gray-200 dark:border-gray-800">
               <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-2">Avatar Cost Breakdown</div>
@@ -599,6 +626,31 @@ function CombinationCard({ combination, rank }: { combination: Combination; rank
         </div>
             </div>
 
+            {/* Storage Cost Breakdown */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 rounded-xl p-4 border border-purple-200 dark:border-purple-900">
+              <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-2">Storage Cost Breakdown</div>
+              <div className="space-y-1 text-gray-700 dark:text-gray-300">
+                <div className="flex justify-between">
+                  <span>Storage Option:</span>
+                  <span className="font-semibold">{combination.storageOption.label}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cost per Database:</span>
+                  <div className="text-right">
+                    <div>{formatUSD(combination.storageOption.monthlyCostUSD)}</div>
+                    <div className="text-gray-500">{formatINR(convertUSDToINR(combination.storageOption.monthlyCostUSD))}</div>
+                  </div>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700 font-semibold">
+                  <span>Total Storage Cost:</span>
+                  <div className="text-right">
+                    <div>{formatUSD(combination.breakdown.storageCostUSD)}</div>
+                    <div className="text-gray-500">{formatINR(combination.breakdown.storageCostINR)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Misc Expenses */}
             <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-xl p-4 border border-yellow-200 dark:border-yellow-900">
               <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-2">Miscellaneous Expenses</div>
@@ -621,8 +673,8 @@ function CombinationCard({ combination, rank }: { combination: Combination; rank
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {combination.warnings.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-800">
@@ -644,4 +696,3 @@ function CombinationCard({ combination, rank }: { combination: Combination; rank
     </div>
   );
 }
-

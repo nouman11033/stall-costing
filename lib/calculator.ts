@@ -9,6 +9,7 @@ import {
   convertINRToUSD,
   MISC_EXPENSES_MONTHLY_INR,
 } from './pricing';
+import { StorageOption, calculateStorageCosts, TierAllocation } from './storageCalculator';
 
 export interface BudgetInput {
   monthlyBudgetINR: number;
@@ -18,6 +19,10 @@ export interface BudgetInput {
   concurrentSessions: number;
   minutesPerMonth: number;
   useVoiceAgent: boolean; // true = avatar + voice agent, false = avatar with inbuilt voice
+  // Storage parameters
+  storageTotalSizeGB: number;
+  storageTierAllocation: TierAllocation;
+  storageNumberOfDatabases: number;
 }
 
 export interface Combination {
@@ -27,6 +32,7 @@ export interface Combination {
   voiceAgent?: VoiceAgent;
   voiceAccounts: number;
   hostingOption: HostingOption;
+  storageOption: StorageOption; // One of the 5 storage options
   totalCostINR: number;
   breakdown: {
     avatarCostINR: number;
@@ -43,6 +49,8 @@ export interface Combination {
     hostingBaseCostINR: number;
     hostingUsersCostINR: number;
     hostingCallsCostINR: number;
+    storageCostINR: number;
+    storageCostUSD: number;
     miscExpensesINR: number;
     totalCostINR: number;
     totalCostUSD: number;
@@ -59,35 +67,50 @@ export function calculateCombinations(input: BudgetInput): Combination[] {
 
   const avatarPlanCombos = buildAvatarPlanCombos(input);
   const voiceAgentCombos = buildVoiceAgentCombos(input);
+  
+  // Calculate storage costs for all 5 storage options
+  const storageOptions = calculateStorageCosts(
+    input.storageTotalSizeGB,
+    input.storageTierAllocation,
+    input.storageNumberOfDatabases
+  );
 
   for (const avatarCombo of avatarPlanCombos) {
     for (const hostingOption of HOSTING_OPTIONS) {
       if (input.useVoiceAgent) {
         for (const voiceCombo of voiceAgentCombos) {
+          // Multiply by 5 storage options
+          for (const storageOption of storageOptions) {
+            const combination = calculateCombination(
+              avatarCombo.plan,
+              avatarCombo.accounts,
+              voiceCombo.agent,
+              voiceCombo.accounts,
+              hostingOption,
+              storageOption,
+              input,
+              apiBudgetINR,
+              hostingBudgetINR
+            );
+            combinations.push(combination);
+          }
+        }
+      } else {
+        // Multiply by 5 storage options
+        for (const storageOption of storageOptions) {
           const combination = calculateCombination(
             avatarCombo.plan,
             avatarCombo.accounts,
-            voiceCombo.agent,
-            voiceCombo.accounts,
+            undefined,
+            1,
             hostingOption,
+            storageOption,
             input,
             apiBudgetINR,
             hostingBudgetINR
           );
           combinations.push(combination);
         }
-      } else {
-        const combination = calculateCombination(
-          avatarCombo.plan,
-          avatarCombo.accounts,
-          undefined,
-          1,
-          hostingOption,
-          input,
-          apiBudgetINR,
-          hostingBudgetINR
-        );
-        combinations.push(combination);
       }
     }
   }
@@ -104,6 +127,7 @@ function calculateCombination(
   voiceAgent: VoiceAgent | undefined,
   voiceAccounts: number,
   hostingOption: HostingOption,
+  storageOption: StorageOption,
   input: BudgetInput,
   apiBudgetINR: number,
   hostingBudgetINR: number
@@ -168,8 +192,13 @@ function calculateCombination(
   const hostingCallsCostINR = calls * hostingOption.costPerCallINR;
   const hostingCostINR = hostingBaseCostINR + hostingUsersCostINR + hostingCallsCostINR;
 
+  // Calculate storage cost
+  // Storage cost is per database, multiply by number of databases
+  const storageCostUSD = storageOption.monthlyCostUSD * input.storageNumberOfDatabases;
+  const storageCostINR = convertUSDToINR(storageCostUSD);
+
   // Total cost (including miscellaneous expenses)
-  const totalCostINR = avatarCostINR + voiceCostINR + hostingCostINR + MISC_EXPENSES_MONTHLY_INR;
+  const totalCostINR = avatarCostINR + voiceCostINR + hostingCostINR + storageCostINR + MISC_EXPENSES_MONTHLY_INR;
   const totalCostUSD = convertINRToUSD(totalCostINR);
 
   // Check if fits budget
@@ -228,7 +257,7 @@ function calculateCombination(
   if (avatarAccounts > 1) score -= 25 * (avatarAccounts - 1);
   if (voiceAccounts > 1) score -= 25 * (voiceAccounts - 1);
 
-  const id = `${avatarPlan.id}x${avatarAccounts}-${voiceAgent?.id || 'inbuilt'}x${voiceAccounts}-${hostingOption.id}`;
+  const id = `${avatarPlan.id}x${avatarAccounts}-${voiceAgent?.id || 'inbuilt'}x${voiceAccounts}-${hostingOption.id}-${storageOption.id}`;
 
   return {
     id,
@@ -237,6 +266,7 @@ function calculateCombination(
     voiceAgent,
     voiceAccounts,
     hostingOption,
+    storageOption,
     totalCostINR,
     breakdown: {
       avatarCostINR,
@@ -253,6 +283,8 @@ function calculateCombination(
       hostingBaseCostINR,
       hostingUsersCostINR,
       hostingCallsCostINR,
+      storageCostINR,
+      storageCostUSD,
       miscExpensesINR: MISC_EXPENSES_MONTHLY_INR,
       totalCostINR,
       totalCostUSD,

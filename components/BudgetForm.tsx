@@ -17,6 +17,13 @@ export default function BudgetForm({ onSubmit, isCalculating }: BudgetFormProps)
     concurrentSessions: 10,
     minutesPerMonth: 3500,
     useVoiceAgent: false,
+    storageTotalSizeGB: 1000,
+    storageTierAllocation: {
+      hot: 600,
+      cold: 300,
+      archive: 100,
+    },
+    storageNumberOfDatabases: 1,
   });
 
   const handleSubmit = (e: React.FormEvent) => {

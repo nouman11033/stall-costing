@@ -111,4 +111,3 @@ cost-calculator/
 ## License
 
 Private project
-
