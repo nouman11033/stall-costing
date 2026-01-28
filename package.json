@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "collect-metrics": "tsx scripts/collect-metrics.ts"
+    "collect-metrics": "tsx scripts/collect-metrics.ts",
+    "vercel:check": "./check-vercel.sh",
+    "vercel:logs": "vercel inspect $(vercel ls --yes 2>/dev/null | grep -oE 'https://[a-zA-Z0-9-]+\\.vercel\\.app' | head -1) --logs 2>&1 | tail -100"
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.17.13",
