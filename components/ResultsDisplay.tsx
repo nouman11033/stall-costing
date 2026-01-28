@@ -22,6 +22,24 @@ interface Filters {
   hostingOptions: string[];
 }
 
+// Helper function to format provider names correctly
+const formatProviderName = (provider: string): string => {
+  const providerMap: Record<string, string> = {
+    'heygen': 'HeyGen',
+    'tevus': 'Tavus',
+    'anam': 'Anam',
+    'inbuilt': 'Inbuilt',
+    'gemini': 'Gemini',
+    'hume': 'Hume',
+    'gpt': 'GPT',
+    'azure': 'Azure',
+    'aws': 'AWS',
+    'railway': 'Railway',
+    'vercel': 'Vercel',
+  };
+  return providerMap[provider.toLowerCase()] || provider.charAt(0).toUpperCase() + provider.slice(1);
+};
+
 export default function ResultsDisplay({ results, isCalculating, users = 100, concurrentSessions = 10 }: ResultsDisplayProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -144,7 +162,7 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
         'Total Cost (INR)': combination.breakdown.totalCostINR,
         'Total Cost (USD)': combination.breakdown.totalCostUSD,
         // Main providers/options
-        'Avatar Provider': combination.avatarPlan.provider,
+        'Avatar Provider': formatProviderName(combination.avatarPlan.provider),
         'Avatar Plan': combination.avatarPlan.name,
         'Avatar Accounts': combination.avatarAccounts,
         'Voice Agent': combination.voiceAgent ? combination.voiceAgent.name : 'Inbuilt (Avatar)',
@@ -172,7 +190,7 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
         'Hosting Total (INR)': combination.breakdown.hostingCostINR,
         // Storage detailed breakdown
         'Storage Option': combination.storageOption.label,
-        'Storage Provider': combination.storageOption.provider,
+        'Storage Provider': formatProviderName(combination.storageOption.provider),
         'Storage Type': combination.storageOption.storageType || '',
         'Storage Replication': combination.storageOption.replication || '',
         'Storage Cost per DB (USD)': combination.storageOption.monthlyCostUSD,
@@ -325,7 +343,7 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
                 >
                   {filterOptions.avatarProviders.map(provider => (
                     <option key={provider} value={provider}>
-                      {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                      {formatProviderName(provider)}
                     </option>
                   ))}
                 </select>
@@ -789,7 +807,7 @@ function CombinationCard({
             {/* Avatar Cost Breakdown */}
             <div className="col-span-1 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black rounded-xl p-4 border border-gray-200 dark:border-gray-800 relative">
               <div className="absolute -top-2 right-2 bg-black text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
-                {combination.avatarPlan.provider}
+                {formatProviderName(combination.avatarPlan.provider)}
               </div>
               <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">Avatar Cost Breakdown</div>
               
@@ -1857,7 +1875,7 @@ function StorageCostBreakdown({
   return (
     <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 rounded-xl p-4 border border-purple-200 dark:border-purple-900 relative">
       <div className="absolute -top-2 right-2 bg-pink-600 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
-        {combination.storageOption.provider}
+        {formatProviderName(combination.storageOption.provider)}
       </div>
       <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">Storage Cost Breakdown</div>
       

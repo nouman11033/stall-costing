@@ -56,7 +56,7 @@ The calculator uses pricing data from the cost estimation PDF:
 ### Avatar Providers
 - **HeyGen**: Essential, Starter, Explorer, Growth, Pro (various tiers)
 - **Anam**: Starter, Growth, Enterprise
-- **Tevus**: Starter, Growth, Enterprise
+- **Tavus**: Starter, Growth, Enterprise
 
 ### Voice Agents
 - **Token-based**: Gemini Live ($17.05/1M tokens), GPT Realtime ($116/1M tokens)
