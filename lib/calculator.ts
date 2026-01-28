@@ -10,19 +10,36 @@ import {
   MISC_EXPENSES_MONTHLY_INR,
 } from './pricing';
 import { StorageOption, calculateStorageCosts, TierAllocation } from './storageCalculator';
+import { calculateQuality, calculateLatency } from './qualityLatency';
 
 export interface BudgetInput {
-  monthlyBudgetINR: number;
-  apiAllocationPercent: number; // Percentage for APIs (avatar + voice)
-  hostingAllocationPercent: number; // Percentage for hosting
+  monthlyBudgetINR?: number; // Optional - can be calculated dynamically
+  apiAllocationPercent?: number; // Optional - can be calculated dynamically
+  hostingAllocationPercent?: number; // Optional - can be calculated dynamically
   users: number;
   concurrentSessions: number;
   minutesPerMonth: number;
-  useVoiceAgent: boolean; // true = avatar + voice agent, false = avatar with inbuilt voice
+  // Provider selections
+  selectedAvatarProviders?: string[]; // ['heygen', 'anam', 'tevus']
+  selectedVoiceProviders?: string[]; // ['inbuilt', 'gemini-live', 'gpt-realtime', 'hume-pro', 'hume-scale', 'hume-business', 'grok']
+  selectedHostingOptions?: string[]; // ['azure', 'railway', 'vercel', 'vercel-railway']
   // Storage parameters
   storageTotalSizeGB: number;
   storageTierAllocation: TierAllocation;
   storageNumberOfDatabases: number;
+  storageProviders?: ('AWS' | 'Azure')[];
+  storageAdditionalCosts?: {
+    aws?: {
+      hot?: { dataTransferOut?: number; putRequests?: number; getRequests?: number; };
+      cold?: { dataTransferOut?: number; putRequests?: number; getRequests?: number; dataRetrieved?: number; };
+      archive?: { dataTransferOut?: number; putRequests?: number; getRequests?: number; dataRetrieved?: number; retrievalType?: 'Standard' | 'Expedited'; retrievalRequests?: number; };
+    };
+    azure?: {
+      hot?: { dataTransferOut?: number; readOperations?: number; writeOperations?: number; queryDataScanned?: number; queryDataReturned?: number; iterativeReadOps?: number; iterativeWriteOps?: number; otherOperations?: number; };
+      cold?: { dataTransferOut?: number; readOperations?: number; writeOperations?: number; queryDataScanned?: number; queryDataReturned?: number; iterativeWriteOps?: number; dataRetrieved?: number; };
+      archive?: { dataTransferOut?: number; readOperations?: number; writeOperations?: number; highPriorityRead?: number; highPriorityRetrieval?: number; iterativeWriteOps?: number; dataRetrieved?: number; };
+    };
+  };
 }
 
 export interface Combination {
@@ -62,24 +79,64 @@ export interface Combination {
 
 export function calculateCombinations(input: BudgetInput): Combination[] {
   const combinations: Combination[] = [];
-  const apiBudgetINR = (input.monthlyBudgetINR * input.apiAllocationPercent) / 100;
-  const hostingBudgetINR = (input.monthlyBudgetINR * input.hostingAllocationPercent) / 100;
+  
+  // Use provided budget or calculate dynamically (if not provided, set to a high value to not filter)
+  const monthlyBudgetINR = input.monthlyBudgetINR || 999999999;
+  const apiAllocationPercent = input.apiAllocationPercent || 100;
+  const hostingAllocationPercent = input.hostingAllocationPercent || 0;
+  const apiBudgetINR = (monthlyBudgetINR * apiAllocationPercent) / 100;
+  const hostingBudgetINR = (monthlyBudgetINR * hostingAllocationPercent) / 100;
 
+  // Filter avatar plans by selected providers
   const avatarPlanCombos = buildAvatarPlanCombos(input);
-  const voiceAgentCombos = buildVoiceAgentCombos(input);
+  
+  // Filter voice agents based on selection
+  // If 'inbuilt' is selected, include combinations with inbuilt voice
+  // If voice agents are selected, include those
+  // If nothing is selected, default to inbuilt
+  const hasVoiceSelection = input.selectedVoiceProviders && input.selectedVoiceProviders.length > 0;
+  const useInbuilt = !hasVoiceSelection || input.selectedVoiceProviders?.includes('inbuilt') || false;
+  const selectedVoiceAgentIds = hasVoiceSelection 
+    ? input.selectedVoiceProviders.filter(v => v !== 'inbuilt')
+    : [];
+  const voiceAgentCombos = buildVoiceAgentCombos(input, selectedVoiceAgentIds);
+  
+  // Filter hosting options by selection
+  const hostingOptions = input.selectedHostingOptions && input.selectedHostingOptions.length > 0
+    ? HOSTING_OPTIONS.filter(h => input.selectedHostingOptions!.includes(h.id))
+    : HOSTING_OPTIONS;
   
   // Calculate storage costs for all 5 storage options
   const storageOptions = calculateStorageCosts(
     input.storageTotalSizeGB,
     input.storageTierAllocation,
-    input.storageNumberOfDatabases
+    input.storageNumberOfDatabases,
+    input.storageAdditionalCosts
   );
 
   for (const avatarCombo of avatarPlanCombos) {
-    for (const hostingOption of HOSTING_OPTIONS) {
-      if (input.useVoiceAgent) {
+    for (const hostingOption of hostingOptions) {
+      // If inbuilt is selected, include combinations with inbuilt voice
+      if (useInbuilt) {
+        for (const storageOption of storageOptions) {
+          const combination = calculateCombination(
+            avatarCombo.plan,
+            avatarCombo.accounts,
+            undefined, // inbuilt voice
+            1,
+            hostingOption,
+            storageOption,
+            input,
+            apiBudgetINR,
+            hostingBudgetINR
+          );
+          combinations.push(combination);
+        }
+      }
+      
+      // If voice agents are selected, include combinations with those agents
+      if (selectedVoiceAgentIds.length > 0) {
         for (const voiceCombo of voiceAgentCombos) {
-          // Multiply by 5 storage options
           for (const storageOption of storageOptions) {
             const combination = calculateCombination(
               avatarCombo.plan,
@@ -95,30 +152,14 @@ export function calculateCombinations(input: BudgetInput): Combination[] {
             combinations.push(combination);
           }
         }
-      } else {
-        // Multiply by 5 storage options
-        for (const storageOption of storageOptions) {
-          const combination = calculateCombination(
-            avatarCombo.plan,
-            avatarCombo.accounts,
-            undefined,
-            1,
-            hostingOption,
-            storageOption,
-            input,
-            apiBudgetINR,
-            hostingBudgetINR
-          );
-          combinations.push(combination);
-        }
       }
     }
   }
 
-  // Filter out invalid combinations and rank
+  // Filter out invalid combinations and rank by lowest cost (rank 1 = lowest cost)
   return combinations
     .filter((c) => isValidCombination(c, input))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => a.totalCostINR - b.totalCostINR); // Sort ascending (lowest cost first)
 }
 
 function calculateCombination(
@@ -201,12 +242,13 @@ function calculateCombination(
   const totalCostINR = avatarCostINR + voiceCostINR + hostingCostINR + storageCostINR + MISC_EXPENSES_MONTHLY_INR;
   const totalCostUSD = convertINRToUSD(totalCostINR);
 
-  // Check if fits budget
-  // Must fit within total monthly budget AND individual allocations
+  // Check if fits budget (only if budget is provided)
   const apiCostINR = avatarCostINR + voiceCostINR;
-  const fitsBudget = totalCostINR <= input.monthlyBudgetINR && 
-                     apiCostINR <= apiBudgetINR && 
-                     hostingCostINR <= hostingBudgetINR;
+  const fitsBudget = input.monthlyBudgetINR 
+    ? (totalCostINR <= input.monthlyBudgetINR && 
+       apiCostINR <= apiBudgetINR && 
+       hostingCostINR <= hostingBudgetINR)
+    : true; // If no budget specified, all combinations fit
 
   // Generate warnings
   const warnings: string[] = [];
@@ -241,21 +283,85 @@ function calculateCombination(
     );
   }
 
-  // Calculate score (higher is better)
-  // Factors: fits budget, cost efficiency, feature match
+  // Calculate score - combines quality, concurrency, cost, latency, and account management
   let score = 0;
-  if (fitsBudget) score += 1000;
-  score -= totalCostINR / 100; // Lower cost = higher score
+  
+  // Avatar provider bonuses
+  const avatarProvider = avatarPlan.provider.toLowerCase();
+  if (avatarProvider === 'tevus') {
+    score += 100;
+  } else if (avatarProvider === 'anam') {
+    score += 90;
+  } else if (avatarProvider === 'heygen') {
+    score += 78;
+  }
+  
+  // Voice agent bonuses
+  if (voiceAgent) {
+    const voiceId = voiceAgent.id.toLowerCase();
+    if (voiceId.includes('hume')) {
+      score += 100;
+    } else if (voiceId.includes('gemini')) {
+      score += 70;
+    } else if (voiceId.includes('gpt')) {
+      score += 10;
+    } else if (voiceId.includes('grok')) {
+      score += 5;
+    }
+  }
+  
+  // Avatar concurrency within limit: +100 points
   if (avatarConcurrencyLimit === undefined || input.concurrentSessions <= avatarConcurrencyLimit) {
     score += 100;
   }
+  
+  // Voice agent concurrency within limit: +100 points
   if (voiceAgent && voiceAgent.concurrency && input.concurrentSessions <= voiceAgent.concurrency * (isVoiceCombo ? 1 : voiceAccounts)) {
     score += 100;
   }
-  if (voiceAgent || avatarPlan.hasInbuiltVoice) score += 50;
-  // Slight penalty for managing multiple accounts to avoid over-favoring splits
+  
+  // Account management penalties (to avoid over-favoring splits)
   if (avatarAccounts > 1) score -= 25 * (avatarAccounts - 1);
   if (voiceAccounts > 1) score -= 25 * (voiceAccounts - 1);
+  
+  // Add quality score: +0 to +1000 points (overallQualityScore × 100)
+  // Create a temporary combination object to calculate quality
+  const tempCombination: Combination = {
+    id: '',
+    avatarPlan,
+    avatarAccounts,
+    voiceAgent,
+    voiceAccounts,
+    hostingOption,
+    storageOption,
+    totalCostINR,
+    breakdown: {
+      avatarCostINR,
+      avatarCostUSD: totalAvatarCostUSD,
+      avatarBaseCostUSD,
+      avatarAdditionalMinutes: additionalMinutes,
+      avatarAdditionalCostUSD,
+      voiceCostINR,
+      voiceCostUSD,
+      voiceBaseCostUSD,
+      voicePerMinuteCostUSD,
+      voiceTotalTokens,
+      hostingCostINR,
+      hostingBaseCostINR,
+      hostingUsersCostINR,
+      hostingCallsCostINR,
+      storageCostINR,
+      storageCostUSD,
+      miscExpensesINR: MISC_EXPENSES_MONTHLY_INR,
+      totalCostINR,
+      totalCostUSD,
+    },
+    fitsBudget,
+    warnings,
+    score: 0, // Will be set below
+  };
+  const quality = calculateQuality(tempCombination, input.users, input.concurrentSessions);
+  score += quality.overallQualityScore * 100; // +0 to +1000 points
 
   const id = `${avatarPlan.id}x${avatarAccounts}-${voiceAgent?.id || 'inbuilt'}x${voiceAccounts}-${hostingOption.id}-${storageOption.id}`;
 
@@ -315,8 +421,8 @@ function isValidCombination(combination: Combination, input: BudgetInput): boole
     }
   }
 
-  // Check if plan has inbuilt voice when not using voice agent
-  if (!input.useVoiceAgent && !combination.avatarPlan.hasInbuiltVoice) {
+  // Check if plan has inbuilt voice when using inbuilt voice (no voice agent)
+  if (!combination.voiceAgent && !combination.avatarPlan.hasInbuiltVoice) {
     return false;
   }
 
@@ -347,7 +453,12 @@ function buildAvatarPlanCombos(input: BudgetInput): { plan: AvatarPlan; accounts
   const combos: { plan: AvatarPlan; accounts: number }[] = [];
   // Filter plans: only exclude plans with no monthly price
   // Enterprise plans will compete with regular plans based on cost-effectiveness
-  const eligible = AVATAR_PLANS.filter((p) => p.monthlyPrice > 0);
+  let eligible = AVATAR_PLANS.filter((p) => p.monthlyPrice > 0);
+  
+  // Filter by selected avatar providers if specified
+  if (input.selectedAvatarProviders && input.selectedAvatarProviders.length > 0) {
+    eligible = eligible.filter((p) => input.selectedAvatarProviders!.includes(p.provider));
+  }
 
   // Group plans by provider
   const plansByProvider = new Map<string, AvatarPlan[]>();
@@ -564,18 +675,39 @@ function getAvatarTierOrder(tier: string): number {
   return tierOrder[tier] ?? 999;
 }
 
-function buildVoiceAgentCombos(input: BudgetInput): { agent: VoiceAgent; accounts: number }[] {
+function buildVoiceAgentCombos(input: BudgetInput, selectedVoiceAgentIds: string[] = []): { agent: VoiceAgent; accounts: number }[] {
   const combos: { agent: VoiceAgent; accounts: number; cost: number }[] = [];
   
-  // Only process voice agents if useVoiceAgent is true
-  if (!input.useVoiceAgent) {
-    return [];
+  // Filter voice agents by selection
+  let eligibleAgents = VOICE_AGENTS;
+  if (selectedVoiceAgentIds.length > 0) {
+    eligibleAgents = VOICE_AGENTS.filter((v) => {
+      // Map display names to IDs
+      // If 'gemini' is selected, include gemini-live
+      if (selectedVoiceAgentIds.includes('gemini') || selectedVoiceAgentIds.includes('gemini-live')) {
+        if (v.id === 'gemini-live') return true;
+      }
+      // If 'gpt' is selected, include gpt-realtime
+      if (selectedVoiceAgentIds.includes('gpt') || selectedVoiceAgentIds.includes('gpt-realtime')) {
+        if (v.id === 'gpt-realtime') return true;
+      }
+      // If 'hume' is selected, include all hume agents (pro, scale, business, enterprise)
+      if (selectedVoiceAgentIds.includes('hume') || selectedVoiceAgentIds.some(id => id.startsWith('hume-'))) {
+        if (v.id.startsWith('hume-')) return true;
+      }
+      // If 'grok' is selected, include grok
+      if (selectedVoiceAgentIds.includes('grok')) {
+        if (v.id === 'grok') return true;
+      }
+      // Direct ID match (for backward compatibility)
+      return selectedVoiceAgentIds.includes(v.id);
+    });
   }
 
-  const humeAgents = VOICE_AGENTS.filter((v) => v.id.startsWith('hume-'));
+  const humeAgents = eligibleAgents.filter((v) => v.id.startsWith('hume-'));
   
   // Process non-Hume agents first (they don't have tiers, so include all that meet concurrency)
-  for (const agent of VOICE_AGENTS) {
+  for (const agent of eligibleAgents) {
     if (!agent.id.startsWith('hume-')) {
       const singleMeetsConcurrency = meetsVoiceConcurrencyRequirement(agent, 1, input.concurrentSessions);
       if (singleMeetsConcurrency) {

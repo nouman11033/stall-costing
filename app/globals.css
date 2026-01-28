@@ -3,20 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #ededed;
-  }
+  --background: #F9F4EE;
+  --foreground: #010101;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: 'Avenir', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 @layer utilities {
@@ -25,80 +19,332 @@ body {
   }
 }
 
-/* Ensure input fields have visible text in both themes */
+/* Ensure input fields have visible text */
 input[type="number"],
 input[type="text"] {
-  color: #111827 !important; /* gray-900 for light mode */
+  color: #010101 !important;
 }
 
-.dark input[type="number"],
-.dark input[type="text"] {
-  color: #ffffff !important; /* white for dark mode */
-}
-
-/* Range slider styling */
+/* Range slider styling - Template style */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   height: 8px;
   border-radius: 4px;
   outline: none;
-  background: rgb(229, 231, 235); /* gray-200 for light mode */
-}
-
-.dark input[type="range"] {
-  background: rgb(55, 65, 81); /* gray-700 for dark mode */
+  background: #E5DDD1;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: rgb(37, 99, 235); /* blue-600 */
+  background: #010101;
   cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  background: rgb(29, 78, 216); /* blue-700 */
   transform: scale(1.1);
 }
 
-.dark input[type="range"]::-webkit-slider-thumb {
-  background: rgb(37, 99, 235);
-  border: 2px solid rgb(17, 24, 39); /* gray-800 */
-}
-
-.dark input[type="range"]::-webkit-slider-thumb:hover {
-  background: rgb(29, 78, 216);
-}
-
 input[type="range"]::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: rgb(37, 99, 235);
+  background: #010101;
   cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: none;
   transition: all 0.2s ease;
 }
 
 input[type="range"]::-moz-range-thumb:hover {
-  background: rgb(29, 78, 216);
   transform: scale(1.1);
 }
 
-.dark input[type="range"]::-moz-range-thumb {
-  background: rgb(37, 99, 235);
-  border: 2px solid rgb(17, 24, 39);
+/* Hide number input spinners by default */
+input[type="number"]:not(.show-spinner)::-webkit-inner-spin-button,
+input[type="number"]:not(.show-spinner)::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.dark input[type="range"]::-moz-range-thumb:hover {
-  background: rgb(29, 78, 216);
+input[type="number"]:not(.show-spinner) {
+  -moz-appearance: textfield;
+}
+
+/* Show spinners for specific fields */
+input[type="number"].show-spinner {
+  -moz-appearance: number-input !important;
+  padding-right: 1.5rem; /* Make room for spinner arrows */
+}
+
+input[type="number"].show-spinner::-webkit-inner-spin-button,
+input[type="number"].show-spinner::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button !important;
+  opacity: 1 !important;
+  cursor: pointer;
+  height: 20px;
+  width: 16px;
+  margin-right: 2px;
+}
+
+/* Minutes Slider - Black White Theme with Glow Animation */
+.minutes-slider {
+  position: relative;
+  background: transparent !important;
+  height: 6px;
+  border: none;
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+}
+
+.minutes-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  background: transparent;
+  border-radius: 0;
+  margin: 0;
+}
+
+.minutes-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #010101;
+  border: none;
+  cursor: pointer;
+  z-index: 20;
+  box-shadow: none;
+  transition: transform 0.2s ease;
+  margin-top: -2px;
+  position: relative;
+}
+
+.minutes-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.minutes-slider::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.minutes-slider::-moz-range-thumb {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #010101;
+  border: none;
+  cursor: pointer;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 20;
+}
+
+.minutes-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Glow animation container */
+.minutes-slider-container {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+  border-radius: 0;
+  height: 6px;
+  background: #E5DDD1;
+  border: none;
+  display: flex;
+  align-items: center;
+}
+
+/* Black selected region */
+.minutes-slider-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--slider-progress, 0%);
+  height: 6px;
+  border-radius: 0;
+  background: #010101;
+  z-index: 1;
+  box-shadow: 
+    0 0 4px rgba(1, 1, 1, 0.3),
+    inset 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Pulsing glow effect that runs along the black region */
+.minutes-slider-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--slider-progress, 0%);
+  height: 6px;
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 15%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.2) 85%,
+    transparent 100%
+  );
+  background-size: 50% 100%;
+  background-position: -50% 0;
+  animation: glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.5;
+  box-shadow: 
+    0 0 8px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(0, 0, 0, 0.25),
+    inset 0 0 6px rgba(29, 3, 3, 0.3);
+}
+
+@keyframes glow-pulse {
+  0% {
+    background-position: -50% 0;
+    opacity: 0.5;
+  }
+  50% {
+    background-position: 150% 0;
+    opacity: 0.7;
+  }
+  100% {
+    background-position: 350% 0;
+    opacity: 0.5;
+  }
+}
+
+/* Tier Slider - Same style as minutes slider for Hot/Cold/Archive */
+.tier-slider {
+  position: relative;
+  background: transparent !important;
+  height: 6px;
+  border: none;
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+}
+
+.tier-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  background: transparent;
+  border-radius: 0;
+  margin: 0;
+}
+
+.tier-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #010101;
+  border: none;
+  cursor: pointer;
+  z-index: 20;
+  box-shadow: none;
+  transition: transform 0.2s ease;
+  margin-top: -2px;
+  position: relative;
+}
+
+.tier-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.tier-slider::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.tier-slider::-moz-range-thumb {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #010101;
+  border: none;
+  cursor: pointer;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 20;
+}
+
+.tier-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Tier slider container */
+.tier-slider-container {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+  border-radius: 0;
+  height: 6px;
+  background: #E5DDD1;
+  border: none;
+  display: flex;
+  align-items: center;
+}
+
+/* Black selected region */
+.tier-slider-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--slider-progress, 0%);
+  height: 6px;
+  border-radius: 0;
+  background: #010101;
+  z-index: 1;
+  box-shadow: 
+    0 0 4px rgba(1, 1, 1, 0.3),
+    inset 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Pulsing glow effect that runs along the black region */
+.tier-slider-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--slider-progress, 0%);
+  height: 6px;
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 15%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.2) 85%,
+    transparent 100%
+  );
+  background-size: 50% 100%;
+  background-position: -50% 0;
+  animation: glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.7;
+  box-shadow: 
+    0 0 8px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(0, 0, 0, 0.25),
+    inset 0 0 6px rgba(29, 3, 3, 0.3);
 }
 

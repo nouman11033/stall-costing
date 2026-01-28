@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Users } from 'lucide-react';
 import { BudgetInput } from '@/lib/calculator';
 
 interface BudgetFormProps {
@@ -9,308 +10,307 @@ interface BudgetFormProps {
 }
 
 export default function BudgetForm({ onSubmit, isCalculating }: BudgetFormProps) {
-  const [formData, setFormData] = useState<BudgetInput>({
-    monthlyBudgetINR: 100000,
-    apiAllocationPercent: 60,
-    hostingAllocationPercent: 40,
-    users: 50,
-    concurrentSessions: 10,
-    minutesPerMonth: 3500,
-    useVoiceAgent: false,
-    storageTotalSizeGB: 1000,
-    storageTierAllocation: {
-      hot: 600,
-      cold: 300,
-      archive: 100,
-    },
-    storageNumberOfDatabases: 1,
-  });
+  const [numUsers, setNumUsers] = useState(100);
+  const [numMinutes, setNumMinutes] = useState(2400);
+  const [concurrentSessions, setConcurrentSessions] = useState(10);
+  const [avatarProviders, setAvatarProviders] = useState<string[]>(['heygen', 'anam', 'tevus']);
+  const [voiceProviders, setVoiceProviders] = useState<string[]>([]);
+  const [hostingServices, setHostingServices] = useState<string[]>([]);
+
+  const avatarOptions = [
+    { id: 'heygen', label: 'HeyGen' },
+    { id: 'anam', label: 'Anam' },
+    { id: 'tevus', label: 'Tavus' },
+  ];
+  
+  const voiceOptions = [
+    { id: 'inbuilt', label: 'Inbuilt' },
+    { id: 'gemini', label: 'Gemini' },
+    { id: 'hume', label: 'Hume' },
+    { id: 'gpt', label: 'GPT' },
+  ];
+  
+  const hostingOptions = [
+    { id: 'azure', label: 'Azure' },
+    { id: 'railway', label: 'Railway' },
+    { id: 'vercel', label: 'Vercel' },
+    { id: 'vercel-railway', label: 'Railway+Vercel' },
+  ];
+
+  const toggleProvider = (provider: string, providers: string[], setProviders: (value: string[]) => void, category: 'avatar' | 'voice' | 'hosting') => {
+    if (providers.includes(provider)) {
+      // Prevent deselecting if it's the last one
+      if (providers.length === 1) {
+        return; // Don't allow deselecting the last item
+      }
+      const newProviders = providers.filter(p => p !== provider);
+      setProviders(newProviders);
+    } else {
+      const newProviders = [...providers, provider];
+      setProviders(newProviders);
+    }
+  };
+
+  const isAllSelected = (options: { id: string }[], providers: string[]) => {
+    return options.every(option => providers.includes(option.id));
+  };
+
+  const toggleSelectAll = (options: { id: string }[], providers: string[], setProviders: (value: string[]) => void) => {
+    if (isAllSelected(options, providers)) {
+      // When deselecting all, keep at least one (the first option)
+      setProviders([options[0].id]);
+    } else {
+      setProviders(options.map(o => o.id));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    // Validate that at least one is selected in each category
+    if (avatarProviders.length === 0 || voiceProviders.length === 0 || hostingServices.length === 0) {
+      return; // Don't submit if validation fails
+    }
+    
+    const input: BudgetInput = {
+      users: numUsers,
+      concurrentSessions: concurrentSessions,
+      minutesPerMonth: numMinutes,
+      selectedAvatarProviders: avatarProviders,
+      selectedVoiceProviders: voiceProviders,
+      selectedHostingOptions: hostingServices,
+      storageTotalSizeGB: 1000, // Will be merged from storageInput in page.tsx
+      storageTierAllocation: {
+        hot: 600,
+        cold: 300,
+        archive: 100,
+      },
+      storageNumberOfDatabases: 1,
+    };
+    
+    onSubmit(input);
   };
-
-  const updateField = (field: keyof BudgetInput, value: number | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const apiBudget = (formData.monthlyBudgetINR * formData.apiAllocationPercent) / 100;
-  const hostingBudget = (formData.monthlyBudgetINR * formData.hostingAllocationPercent) / 100;
-  const totalAllocation = formData.apiAllocationPercent + formData.hostingAllocationPercent;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-
-      {/* Monthly Budget */}
-      <div className="space-y-2.5">
-        <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          Monthly Budget (INR)
-        </label>
-        <input
-          type="number"
-          min="0"
-          step="1000"
-          value={formData.monthlyBudgetINR}
-          onChange={(e) => updateField('monthlyBudgetINR', Number(e.target.value))}
-          className="w-full px-5 py-3.5 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white font-semibold shadow-sm hover:shadow-md transition-all duration-200 text-[0.85rem]"
-          required
-        />
-      </div>
-
-      {/* Budget Allocation */}
-      <div className="space-y-2.5">
-        <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          API Allocation: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formData.apiAllocationPercent}%</span> 
-          <span className="text-gray-500 dark:text-gray-400 ml-2 font-normal">(₹{apiBudget.toLocaleString('en-IN')})</span>
-        </label>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={formData.apiAllocationPercent}
-          onChange={(e) => {
-            const apiPercent = Number(e.target.value);
-            const hostingPercent = 100 - apiPercent;
-            setFormData((prev) => ({
-              ...prev,
-              apiAllocationPercent: apiPercent,
-              hostingAllocationPercent: hostingPercent,
-            }));
-          }}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-          style={{
-            background: `linear-gradient(to right, rgb(37, 99, 235) 0%, rgb(37, 99, 235) ${formData.apiAllocationPercent}%, rgb(229, 231, 235) ${formData.apiAllocationPercent}%, rgb(229, 231, 235) 100%)`
-          }}
-        />
-        <div className="flex justify-between text-[0.6375rem] text-gray-500 mt-1">
-          <span>0%</span>
-          <span>100%</span>
+    <form id="budget-form" onSubmit={handleSubmit} className="h-full">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-[#E5DDD1] overflow-hidden hover:shadow-md transition-all duration-300 hover:border-[#010101] h-full flex flex-col h-[600px]">
+        {/* Header */}
+        <div className="bg-white border-b border-[#E5DDD1] p-6 flex-shrink-0">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-[#010101] rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <h2 
+              className="text-2xl font-bold text-[#010101]"
+              style={{ fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+            >
+              Interactive Avatar
+            </h2>
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-2.5">
-        <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          Hosting Allocation: <span className="text-purple-600 dark:text-purple-400 font-extrabold">{formData.hostingAllocationPercent}%</span>
-          <span className="text-gray-500 dark:text-gray-400 ml-2 font-normal">(₹{hostingBudget.toLocaleString('en-IN')})</span>
-        </label>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={formData.hostingAllocationPercent}
-          onChange={(e) => {
-            const hostingPercent = Number(e.target.value);
-            const apiPercent = 100 - hostingPercent;
-            setFormData((prev) => ({
-              ...prev,
-              apiAllocationPercent: apiPercent,
-              hostingAllocationPercent: hostingPercent,
-            }));
-          }}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-          style={{
-            background: `linear-gradient(to right, rgb(37, 99, 235) 0%, rgb(37, 99, 235) ${formData.hostingAllocationPercent}%, rgb(229, 231, 235) ${formData.hostingAllocationPercent}%, rgb(229, 231, 235) 100%)`
-          }}
-        />
-        <div className="flex justify-between text-[0.6375rem] text-gray-500 mt-1">
-          <span>0%</span>
-          <span>100%</span>
-        </div>
-      </div>
-
-      {totalAllocation !== 100 && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border-2 border-yellow-300 dark:border-yellow-700 rounded-xl p-4">
-          <p className="text-[0.74375rem] font-medium text-yellow-800 dark:text-yellow-200">
-            ⚠️ Total allocation: {totalAllocation}% (should be 100%)
-          </p>
-        </div>
-      )}
-
-      {/* Users */}
-      <div className="space-y-2.5">
-        <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          Number of Users
-        </label>
-        <input
-          type="number"
-          min="1"
-          value={formData.users}
-          onChange={(e) => updateField('users', Number(e.target.value))}
-          className="w-full px-5 py-3.5 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white font-semibold shadow-sm hover:shadow-md transition-all duration-200 text-[0.85rem]"
-          required
-        />
-      </div>
-
-      {/* Concurrent Sessions */}
-      <div className="space-y-2.5">
-        <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          Concurrent Sessions
-        </label>
-        <input
-          type="number"
-          min="1"
-          value={formData.concurrentSessions}
-          onChange={(e) => updateField('concurrentSessions', Number(e.target.value))}
-          className="w-full px-5 py-3.5 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white font-semibold shadow-sm hover:shadow-md transition-all duration-200 text-[0.85rem]"
-          required
-        />
-      </div>
-
-      {/* Minutes per Month */}
-      <div className="space-y-2.5">
-        <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-          Minutes per Month: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{formData.minutesPerMonth.toLocaleString()}</span>
-        </label>
-        <input
-          type="range"
-          min="0"
-          max="10000"
-          step="100"
-          value={formData.minutesPerMonth}
-          onChange={(e) => updateField('minutesPerMonth', Number(e.target.value))}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-          style={{
-            background: `linear-gradient(to right, rgb(37, 99, 235) 0%, rgb(37, 99, 235) ${(formData.minutesPerMonth / 10000) * 100}%, rgb(229, 231, 235) ${(formData.minutesPerMonth / 10000) * 100}%, rgb(229, 231, 235) 100%)`
-          }}
-        />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>0</span>
-          <span>10,000</span>
-        </div>
-        <input
-          type="number"
-          min="0"
-          step="100"
-          value={formData.minutesPerMonth}
-          onChange={(e) => updateField('minutesPerMonth', Number(e.target.value))}
-          className="w-full px-5 py-3.5 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white font-semibold shadow-sm hover:shadow-md transition-all duration-200 text-[0.85rem]"
-          required
-        />
-      </div>
-
-      {/* Voice Minutes Breakdown (if using voice agent) */}
-      {formData.useVoiceAgent && (
-        <div className="bg-gradient-to-br from-blue-50/80 via-indigo-50/80 to-purple-50/80 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 border border-blue-200/50 dark:border-blue-800/30 rounded-2xl p-5 shadow-lg backdrop-blur-sm">
-          <h3 className="text-[0.74375rem] font-semibold text-gray-900 dark:text-white mb-3">
-            Voice Agent Cost Preview (for {formData.minutesPerMonth.toLocaleString()} minutes)
-          </h3>
-          <div className="space-y-2 text-[0.6375rem]">
-            {/* Gemini Live */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">Gemini Live (2,500-3,500 tokens/min):</span>
-              <div className="text-right">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  ${((formData.minutesPerMonth * 3000 / 1_000_000) * 17.05).toFixed(2)}
-                </div>
-                <div className="text-gray-500">
-                  ₹{((formData.minutesPerMonth * 3000 / 1_000_000) * 17.05 * 90).toFixed(0)}
-                </div>
+        {/* Content */}
+        <div className="p-6 flex-1 flex flex-col">
+          <div className="space-y-4 flex-1">
+            {/* Number Inputs */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                  Number of Users
+                </label>
+                <input
+                  type="number"
+                  value={numUsers}
+                  onChange={(e) => setNumUsers(Number(e.target.value))}
+                  className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                  placeholder="0"
+                  min="1"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                  Concurrent Sessions
+                </label>
+                <input
+                  type="number"
+                  value={concurrentSessions}
+                  onChange={(e) => setConcurrentSessions(Number(e.target.value))}
+                  className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                  placeholder="0"
+                  min="1"
+                  required
+                />
               </div>
             </div>
-            {/* GPT Realtime */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">GPT Realtime (670-1,350 tokens/min):</span>
-              <div className="text-right">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  ${((formData.minutesPerMonth * 1010 / 1_000_000) * 116.00).toFixed(2)}
-                </div>
-                <div className="text-gray-500">
-                  ₹{((formData.minutesPerMonth * 1010 / 1_000_000) * 116.00 * 90).toFixed(0)}
-                </div>
+
+            {/* Minutes with Slider */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[#010101]">
+                  Minutes per month: {numMinutes.toLocaleString()}
+                </label>
               </div>
+              <div 
+                className="minutes-slider-container relative"
+                style={{
+                  '--slider-progress': `${(numMinutes / 100000) * 100}%`
+                } as React.CSSProperties}
+              >
+                <input
+                  type="range"
+                  min="0"
+                  max="100000"
+                  step="100"
+                  value={numMinutes}
+                  onChange={(e) => setNumMinutes(Number(e.target.value))}
+                  className="minutes-slider w-full appearance-none cursor-pointer relative z-10"
+                  style={{
+                    background: 'transparent',
+                    height: '6px'
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-[#4F4F4E] mt-1 mb-2">
+                <span>0</span>
+                <span>100K</span>
+              </div>
+              <input
+                type="number"
+                value={numMinutes}
+                onChange={(e) => setNumMinutes(Number(e.target.value))}
+                className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                placeholder="0"
+                min="0"
+                max={100000}
+                step="100"
+                required
+              />
             </div>
-            {/* Hume Pro */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">Hume Pro (min $70):</span>
-              <div className="text-right">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  ${Math.max(70, formData.minutesPerMonth * 0.06).toFixed(2)}
-                </div>
-                <div className="text-gray-500">
-                  ₹{(Math.max(70, formData.minutesPerMonth * 0.06) * 90).toFixed(0)}
-                </div>
+
+            {/* Avatar Provider Checkboxes */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-[#010101]">
+                  Avatar Provider
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected(avatarOptions, avatarProviders)}
+                    onChange={() => toggleSelectAll(avatarOptions, avatarProviders, setAvatarProviders)}
+                    className="w-3.5 h-3.5 rounded border-[#E5DDD1] text-[#010101] focus:ring-[#010101] cursor-pointer"
+                  />
+                  <span className="text-[10px] font-medium text-[#4F4F4E]">Select All</span>
+                </label>
               </div>
+              <div className="flex flex-wrap gap-2">
+                {avatarOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => toggleProvider(option.id, avatarProviders, setAvatarProviders, 'avatar')}
+                    disabled={avatarProviders.length === 1 && avatarProviders.includes(option.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      avatarProviders.includes(option.id)
+                        ? 'bg-[#010101] text-white border-[#010101]'
+                        : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                    } ${avatarProviders.length === 1 && avatarProviders.includes(option.id) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              {avatarProviders.length === 0 && (
+                <p className="text-[10px] text-orange-600 mt-1">
+                  ⚠️ At least one Avatar Provider must be selected
+                </p>
+              )}
             </div>
-            {/* Hume Scale */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">Hume Scale (min $200):</span>
-              <div className="text-right">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  ${Math.max(200, formData.minutesPerMonth * 0.05).toFixed(2)}
-                </div>
-                <div className="text-gray-500">
-                  ₹{(Math.max(200, formData.minutesPerMonth * 0.05) * 90).toFixed(0)}
-                </div>
+            
+            {/* Voice Provider Checkboxes */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-[#010101]">
+                  Voice Provider
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected(voiceOptions, voiceProviders)}
+                    onChange={() => toggleSelectAll(voiceOptions, voiceProviders, setVoiceProviders)}
+                    className="w-3.5 h-3.5 rounded border-[#E5DDD1] text-[#010101] focus:ring-[#010101] cursor-pointer"
+                  />
+                  <span className="text-[10px] font-medium text-[#4F4F4E]">Select All</span>
+                </label>
               </div>
+              <div className="flex flex-wrap gap-2">
+                {voiceOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => toggleProvider(option.id, voiceProviders, setVoiceProviders, 'voice')}
+                    disabled={voiceProviders.length === 1 && voiceProviders.includes(option.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      voiceProviders.includes(option.id)
+                        ? 'bg-[#010101] text-white border-[#010101]'
+                        : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                    } ${voiceProviders.length === 1 && voiceProviders.includes(option.id) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              {voiceProviders.length === 0 && (
+                <p className="text-[10px] text-orange-600 mt-1">
+                  ⚠️ At least one Voice Provider must be selected
+                </p>
+              )}
             </div>
-            {/* Hume Business */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">Hume Business (min $500):</span>
-              <div className="text-right">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  ${Math.max(500, formData.minutesPerMonth * 0.04).toFixed(2)}
-                </div>
-                <div className="text-gray-500">
-                  ₹{(Math.max(500, formData.minutesPerMonth * 0.04) * 90).toFixed(0)}
-                </div>
+
+            {/* Hosting Service Options */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-[#010101]">
+                  Hosting Service
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected(hostingOptions, hostingServices)}
+                    onChange={() => toggleSelectAll(hostingOptions, hostingServices, setHostingServices)}
+                    className="w-3.5 h-3.5 rounded border-[#E5DDD1] text-[#010101] focus:ring-[#010101] cursor-pointer"
+                  />
+                  <span className="text-[10px] font-medium text-[#4F4F4E]">Select All</span>
+                </label>
               </div>
-            </div>
-            {/* Grok */}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-700 dark:text-gray-300">Grok (per min per concurrency):</span>
-              <div className="text-right">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  ${(formData.minutesPerMonth * 0.05 * formData.concurrentSessions).toFixed(2)}
-                </div>
-                <div className="text-gray-500">
-                  ₹{(formData.minutesPerMonth * 0.05 * formData.concurrentSessions * 90).toFixed(0)}
-                </div>
+              <div className="flex flex-wrap gap-2">
+                {hostingOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => toggleProvider(option.id, hostingServices, setHostingServices, 'hosting')}
+                    disabled={hostingServices.length === 1 && hostingServices.includes(option.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      hostingServices.includes(option.id)
+                        ? 'bg-[#010101] text-white border-[#010101]'
+                        : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                    } ${hostingServices.length === 1 && hostingServices.includes(option.id) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              {hostingServices.length === 0 && (
+                <p className="text-[10px] text-orange-600 mt-1">
+                  ⚠️ At least one Hosting Service must be selected
+                </p>
+              )}
             </div>
           </div>
         </div>
-      )}
-
-      {/* Voice Option */}
-      <div>
-        <label className="flex items-center space-x-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={formData.useVoiceAgent}
-            onChange={(e) => updateField('useVoiceAgent', e.target.checked)}
-            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-          <span className="text-[0.74375rem] font-medium text-gray-700 dark:text-gray-300">
-            Use Voice Agent (instead of inbuilt avatar voice)
-          </span>
-        </label>
-        <p className="text-[0.6375rem] text-gray-500 dark:text-gray-400 mt-1 ml-8">
-          {formData.useVoiceAgent
-            ? 'Will use Gemini Live or GPT Realtime for voice'
-            : 'Will use avatar provider\'s inbuilt voice'}
-        </p>
       </div>
-
-      {/* Submit Button */}
-      <button
-        type="submit"
-        disabled={isCalculating || totalAllocation !== 100}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-300 disabled:transform-none text-[0.85rem]"
-      >
-        {isCalculating ? (
-          <span className="flex items-center justify-center">
-            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Calculating...
-          </span>
-        ) : (
-          'Calculate Combinations'
-        )}
-      </button>
     </form>
   );
 }
-

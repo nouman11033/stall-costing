@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export interface StorageInput {
   totalSizeGB: number;
@@ -10,6 +11,61 @@ export interface StorageInput {
     archive: number; // in GB
   };
   numberOfDatabases: number;
+  // Storage provider selection
+  storageProviders: ('AWS' | 'Azure')[];
+  // AWS Additional Cost Parameters
+  aws?: {
+    hot?: {
+      dataTransferOut?: number; // GB
+      putRequests?: number;
+      getRequests?: number;
+    };
+    cold?: {
+      dataTransferOut?: number; // GB
+      putRequests?: number;
+      getRequests?: number;
+      dataRetrieved?: number; // GB
+    };
+    archive?: {
+      dataTransferOut?: number; // GB
+      putRequests?: number;
+      getRequests?: number;
+      dataRetrieved?: number; // GB
+      retrievalType?: 'Standard' | 'Expedited';
+      retrievalRequests?: number;
+    };
+  };
+  // Azure Additional Cost Parameters
+  azure?: {
+    hot?: {
+      dataTransferOut?: number; // GB
+      readOperations?: number; // per 10,000
+      writeOperations?: number; // per 10,000
+      queryDataScanned?: number; // GB
+      queryDataReturned?: number; // GB
+      iterativeReadOps?: number; // per 10,000
+      iterativeWriteOps?: number; // per 100
+      otherOperations?: number; // per 10,000
+    };
+    cold?: {
+      dataTransferOut?: number; // GB
+      readOperations?: number; // per 10,000
+      writeOperations?: number; // per 10,000
+      queryDataScanned?: number; // GB
+      queryDataReturned?: number; // GB
+      iterativeWriteOps?: number; // per 100
+      dataRetrieved?: number; // GB
+    };
+    archive?: {
+      dataTransferOut?: number; // GB
+      readOperations?: number;
+      writeOperations?: number;
+      highPriorityRead?: number; // per 100
+      highPriorityRetrieval?: number; // GB
+      iterativeWriteOps?: number; // per 100
+      dataRetrieved?: number; // GB
+    };
+  };
 }
 
 interface StorageInputProps {
@@ -19,6 +75,13 @@ interface StorageInputProps {
 
 export default function StorageInput({ storageInput, onChange }: StorageInputProps) {
   const maxSizeGB = 500 * 1024; // 500 TB in GB
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  const [activeProvider, setActiveProvider] = useState<'AWS' | 'Azure'>('AWS');
+  const [activeTierTab, setActiveTierTab] = useState<'Hot' | 'Cold' | 'Archive'>('Hot');
+
+  const selectedProviders = storageInput.storageProviders || ['AWS', 'Azure'];
+  const hasBothProviders = selectedProviders.length === 2;
+  const hasOneProvider = selectedProviders.length === 1;
 
   const totalAllocated = storageInput.tierAllocation.hot + storageInput.tierAllocation.cold + storageInput.tierAllocation.archive;
   const percentages = {
@@ -61,37 +124,72 @@ export default function StorageInput({ storageInput, onChange }: StorageInputPro
     });
   };
 
-  const handleAbsoluteChange = (tier: keyof typeof storageInput.tierAllocation, valueGB: number) => {
-    const newValue = Math.max(0, Math.min(storageInput.totalSizeGB, valueGB));
-    const newAllocation = { ...storageInput.tierAllocation };
-    newAllocation[tier] = newValue;
-    onChange({
-      ...storageInput,
-      tierAllocation: newAllocation,
-    });
+  const toggleProvider = (provider: 'AWS' | 'Azure') => {
+    const providers = storageInput.storageProviders || [];
+    const newProviders = providers.includes(provider)
+      ? providers.filter(p => p !== provider)
+      : [...providers, provider];
+    onChange({ ...storageInput, storageProviders: newProviders.length > 0 ? newProviders : [provider] });
+  };
+
+  const updateAdditionalCost = (provider: 'AWS' | 'Azure', tier: 'hot' | 'cold' | 'archive', field: string, value: number | string) => {
+    const updated = { ...storageInput };
+    if (!updated[provider.toLowerCase() as 'aws' | 'azure']) {
+      updated[provider.toLowerCase() as 'aws' | 'azure'] = {};
+    }
+    const providerData = updated[provider.toLowerCase() as 'aws' | 'azure'] as any;
+    if (!providerData[tier]) {
+      providerData[tier] = {};
+    }
+    providerData[tier][field] = value;
+    onChange(updated);
+  };
+
+  const getAdditionalCostValue = (provider: 'AWS' | 'Azure', tier: 'hot' | 'cold' | 'archive', field: string): number | string => {
+    const providerData = storageInput[provider.toLowerCase() as 'aws' | 'azure'];
+    if (!providerData || !providerData[tier]) return 0;
+    return (providerData[tier] as any)[field] ?? 0;
+  };
+
+  const handleNext = () => {
+    if (selectedProviders.length > 0) {
+      if (hasOneProvider) {
+        setActiveProvider(selectedProviders[0] as 'AWS' | 'Azure');
+      }
+      setCurrentStep(2);
+    }
+  };
+
+  const handleBack = () => {
+    setCurrentStep(1);
   };
 
   return (
-    <div className="bg-white/80 dark:bg-black/80 backdrop-blur-sm border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-8">
-      <div className="mb-8 pb-6 border-b border-gray-200/50 dark:border-gray-800/50">
-        <div className="flex items-center space-x-3 mb-2">
-          <div className="w-1 h-8 bg-purple-600 dark:bg-purple-500 rounded-full"></div>
-          <div>
-            <h2 className="text-[1.275rem] font-bold text-gray-900 dark:text-white">
-              Storage Configuration
-            </h2>
-            <p className="text-[0.6375rem] text-gray-500 dark:text-gray-400 mt-0.5 font-medium">
-              Azure & AWS Storage Parameters
-            </p>
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-[#E5DDD1] overflow-hidden hover:shadow-md transition-all duration-300 hover:border-[#010101] flex flex-col h-[600px]">
+      {/* Header */}
+      <div className="bg-white border-b border-[#E5DDD1] p-6 flex-shrink-0">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 bg-[#010101] rounded-xl flex items-center justify-center">
+            <Layers className="w-5 h-5 text-white" />
           </div>
+          <h2 
+            className="text-2xl font-bold text-[#010101]"
+            style={{ fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+          >
+            Data Storage
+          </h2>
         </div>
       </div>
 
-      <div className="space-y-6">
-        {/* Number of Databases */}
-        <div className="space-y-2.5">
-          <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-            Number of Databases (1-75)
+      {/* Content - Step 1: Basic Info + Provider Selection */}
+      {currentStep === 1 && (
+        <div className="p-6 flex-1 flex flex-col">
+          <div className="space-y-4 flex-1">
+            {/* Number Inputs */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                  Number of Databases
           </label>
           <input
             type="number"
@@ -105,15 +203,15 @@ export default function StorageInput({ storageInput, onChange }: StorageInputPro
                 numberOfDatabases: Math.max(1, Math.min(75, value)),
               });
             }}
-            className="w-full px-5 py-3.5 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white font-semibold shadow-sm hover:shadow-md transition-all duration-200 text-[0.85rem]"
+            className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+            placeholder="0"
             required
           />
         </div>
 
-        {/* Total Storage Size */}
-        <div className="space-y-2.5">
-          <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-            Total Storage Size per Database (GB)
+              <div>
+                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                  Storage Size per Database (GB)
           </label>
           <input
             type="number"
@@ -136,78 +234,714 @@ export default function StorageInput({ storageInput, onChange }: StorageInputPro
                 });
               }
             }}
-            className="w-full px-5 py-3.5 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm text-gray-900 dark:text-white font-semibold shadow-sm hover:shadow-md transition-all duration-200 text-[0.85rem]"
+            className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+            placeholder="0"
             required
           />
-          <p className="text-[0.6375rem] text-gray-500 dark:text-gray-400">
-            Max: {maxSizeGB.toLocaleString('en-US')} GB ({(maxSizeGB / 1024).toLocaleString('en-US')} TB)
-          </p>
+              </div>
+            </div>
+
+            {/* Storage Provider Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-[#010101] mb-2">
+                Storage Provider
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleProvider('AWS')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedProviders.includes('AWS')
+                      ? 'bg-[#010101] text-white border-[#010101]'
+                      : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                  }`}
+                >
+                  AWS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleProvider('Azure')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedProviders.includes('Azure')
+                      ? 'bg-[#010101] text-white border-[#010101]'
+                      : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                  }`}
+                >
+                  Azure
+                </button>
+              </div>
         </div>
 
         {/* Tier Allocation */}
-        <div className="space-y-4">
-          <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-            Tier Allocation
+            <div className="pt-1">
+              <h3 className="text-xs font-semibold text-[#010101] mb-2">Tier Allocation</h3>
+              
+              {/* Hot / S3 Standard */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-[#010101]">
+                    Hot / S3 Standard
           </label>
-          {(['hot', 'cold', 'archive'] as const).map((tier) => (
-            <div key={tier} className="space-y-2.5">
-              <div className="flex justify-between items-center">
-                <label className="block text-[0.6375rem] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 capitalize">
-                  {tier} Tier
-                </label>
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                   <input
                     type="number"
+                      value={Math.round(percentages.hot)}
+                      onChange={(e) => handlePercentageChange('hot', parseFloat(e.target.value))}
+                      className="w-14 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                      min="0"
+                      max="100"
+                    />
+                    <span className="text-xs font-medium text-[#010101]">%</span>
+                  </div>
+                </div>
+                <div 
+                  className="tier-slider-container relative"
+                  style={{
+                    '--slider-progress': `${percentages.hot}%`
+                  } as React.CSSProperties}
+                >
+                  <input
+                    type="range"
                     min="0"
                     max="100"
-                    step="0.1"
-                    value={percentages[tier].toFixed(1)}
-                    onChange={(e) => handlePercentageChange(tier, parseFloat(e.target.value))}
-                    className="w-16 px-2 py-1 border border-gray-300/50 dark:border-gray-700/50 rounded-lg text-xs text-right font-semibold bg-white dark:bg-gray-900 focus:ring-2 focus:ring-purple-500"
-                  />
-                  <span className="text-xs text-gray-500 font-semibold">%</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={storageInput.totalSizeGB}
                     step="1"
-                    value={Math.round(storageInput.tierAllocation[tier])}
-                    onChange={(e) => handleAbsoluteChange(tier, parseFloat(e.target.value))}
-                    className="w-20 px-2 py-1 border border-gray-300/50 dark:border-gray-700/50 rounded-lg text-xs text-right font-semibold bg-white dark:bg-gray-900 focus:ring-2 focus:ring-purple-500"
+                    value={percentages.hot}
+                    onChange={(e) => handlePercentageChange('hot', parseFloat(e.target.value))}
+                    className="tier-slider w-full appearance-none cursor-pointer relative z-10"
+                    style={{
+                      background: 'transparent',
+                      height: '6px'
+                    }}
                   />
-                  <span className="text-xs text-gray-500 font-semibold">GB</span>
                 </div>
               </div>
+
+              {/* Cold / S3 Standard - IA */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-[#010101]">
+                    Cold / S3 Standard - IA
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                      value={Math.round(percentages.cold)}
+                      onChange={(e) => handlePercentageChange('cold', parseFloat(e.target.value))}
+                      className="w-14 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                    min="0"
+                      max="100"
+                    />
+                    <span className="text-xs font-medium text-[#010101]">%</span>
+                  </div>
+                </div>
+                <div 
+                  className="tier-slider-container relative"
+                  style={{
+                    '--slider-progress': `${percentages.cold}%`
+                  } as React.CSSProperties}
+                >
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={percentages.cold}
+                    onChange={(e) => handlePercentageChange('cold', parseFloat(e.target.value))}
+                    className="tier-slider w-full appearance-none cursor-pointer relative z-10"
+                    style={{
+                      background: 'transparent',
+                      height: '6px'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Archive / S3 Glacier Flexible Retrieval */}
+              <div className="mb-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-[#010101]">
+                    Archive / S3 Glacier Flexible Retrieval
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      value={Math.round(percentages.archive)}
+                      onChange={(e) => handlePercentageChange('archive', parseFloat(e.target.value))}
+                      className="w-14 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                      min="0"
+                      max="100"
+                    />
+                    <span className="text-xs font-medium text-[#010101]">%</span>
+                </div>
+              </div>
+              <div 
+                className="tier-slider-container relative"
+                style={{
+                  '--slider-progress': `${percentages.archive}%`
+                } as React.CSSProperties}
+              >
               <input
                 type="range"
                 min="0"
                 max="100"
-                step="0.1"
-                value={percentages[tier]}
-                onChange={(e) => handlePercentageChange(tier, parseFloat(e.target.value))}
-                className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  step="1"
+                  value={percentages.archive}
+                  onChange={(e) => handlePercentageChange('archive', parseFloat(e.target.value))}
+                  className="tier-slider w-full appearance-none cursor-pointer relative z-10"
                 style={{
-                  background: `linear-gradient(to right, rgb(147, 51, 234) 0%, rgb(147, 51, 234) ${percentages[tier]}%, rgb(229, 231, 235) ${percentages[tier]}%, rgb(229, 231, 235) 100%)`
-                }}
-              />
-            </div>
-          ))}
-        </div>
+                    background: 'transparent',
+                    height: '6px'
+                  }}
+                />
+              </div>
+              </div>
 
-        {/* Summary */}
-        <div className="pt-4 border-t border-gray-200/50 dark:border-gray-800/50">
-          <div className="flex justify-between items-center text-[0.6375rem]">
-            <span className="font-bold text-gray-700 dark:text-gray-300">
-              Total Allocated: {Math.round(totalAllocated).toLocaleString('en-US')} GB
-            </span>
-            <span className={`font-bold ${
-              Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-            }`}>
-              {totalPercentage.toFixed(1)}%
-            </span>
+              {/* Total Percentage Indicator */}
+              <div className="flex justify-end mt-1">
+                <span className={`text-xs font-semibold ${
+                  Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  Total: {totalPercentage.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Next Button */}
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={selectedProviders.length === 0}
+              className="px-6 py-2 bg-[#010101] text-white rounded-lg text-xs font-semibold hover:bg-[#1a1a1a] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Content - Step 2: Additional Costs */}
+      {currentStep === 2 && (
+        <div className="p-6 flex-1 flex flex-col">
+          <div className="space-y-4 flex-1">
+            {/* Provider Toggle (only if both selected) */}
+            {hasBothProviders && (
+              <div className="relative mb-4">
+                {/* Line Separator */}
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[#E5DDD1]"></div>
+                </div>
+                {/* Toggle Buttons */}
+                <div className="relative flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setActiveProvider('AWS')}
+                    className={`px-6 py-2 bg-white text-xs font-semibold transition-all border-t-2 ${
+                      activeProvider === 'AWS'
+                        ? 'text-[#010101] border-[#010101]'
+                        : 'text-[#4F4F4E] border-transparent hover:text-[#010101]'
+                    }`}
+                  >
+                    AWS
+                  </button>
+                  <div className="w-px h-6 bg-[#E5DDD1]"></div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveProvider('Azure')}
+                    className={`px-6 py-2 bg-white text-xs font-semibold transition-all border-t-2 ${
+                      activeProvider === 'Azure'
+                        ? 'text-[#010101] border-[#010101]'
+                        : 'text-[#4F4F4E] border-transparent hover:text-[#010101]'
+                    }`}
+                  >
+                    Azure
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tier Allocation Reference */}
+            <div className="bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg p-3 mb-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-[#010101]">Tier Allocation Reference:</span>
+                <div className="flex items-center gap-4 text-[#4F4F4E]">
+                  <span>Hot: <span className="font-semibold text-[#010101]">{Math.round(percentages.hot)}%</span></span>
+                  <span>Cold: <span className="font-semibold text-[#010101]">{Math.round(percentages.cold)}%</span></span>
+                  <span>Archive: <span className="font-semibold text-[#010101]">{Math.round(percentages.archive)}%</span></span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tier Tabs */}
+            <div className="flex gap-2 mb-3">
+              {activeProvider === 'AWS' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTierTab('Hot')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTierTab === 'Hot'
+                        ? 'bg-[#010101] text-white'
+                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
+                    }`}
+                  >
+                    S3 Standard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTierTab('Cold')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTierTab === 'Cold'
+                        ? 'bg-[#010101] text-white'
+                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
+                    }`}
+                  >
+                    S3 Standard-IA
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTierTab('Archive')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTierTab === 'Archive'
+                        ? 'bg-[#010101] text-white'
+                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
+                    }`}
+                  >
+                    S3 Glacier Flexible Retrieval
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTierTab('Hot')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTierTab === 'Hot'
+                        ? 'bg-[#010101] text-white'
+                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
+                    }`}
+                  >
+                    Hot
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTierTab('Cold')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTierTab === 'Cold'
+                        ? 'bg-[#010101] text-white'
+                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
+                    }`}
+                  >
+                    Cold
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTierTab('Archive')}
+                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      activeTierTab === 'Archive'
+                        ? 'bg-[#010101] text-white'
+                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
+                    }`}
+                  >
+                    Archive
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Input Parameters based on Provider and Tier */}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {activeProvider === 'AWS' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-[#010101]">
+                      PUT/COPY/POST/LIST Requests
+                    </label>
+                    <input
+                      type="number"
+                      value={Number(getAdditionalCostValue('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'putRequests')) || 0}
+                      onChange={(e) => updateAdditionalCost('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'putRequests', Number(e.target.value))}
+                      className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-[#010101]">
+                      GET/SELECT Requests
+                    </label>
+                    <input
+                      type="number"
+                      value={Number(getAdditionalCostValue('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'getRequests')) || 0}
+                      onChange={(e) => updateAdditionalCost('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'getRequests', Number(e.target.value))}
+                      className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  </div>
+                  {(activeTierTab === 'Cold' || activeTierTab === 'Archive') && (
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-medium text-[#010101]">
+                        Data Retrieval (GB)
+                      </label>
+                      <input
+                        type="number"
+                        value={Number(getAdditionalCostValue('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'dataRetrieved')) || 0}
+                        onChange={(e) => updateAdditionalCost('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'dataRetrieved', Number(e.target.value))}
+                        className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                        placeholder="0"
+                        min="0"
+                        step="1"
+                      />
+                    </div>
+                  )}
+                  {activeTierTab === 'Archive' && (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Data Retrieval Requests
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={String(getAdditionalCostValue('AWS', 'archive', 'retrievalType') || 'Standard')}
+                            onChange={(e) => updateAdditionalCost('AWS', 'archive', 'retrievalType', e.target.value)}
+                            className="w-24 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          >
+                            <option value="Standard">Standard</option>
+                            <option value="Expedited">Expedited</option>
+                          </select>
+                          <input
+                            type="number"
+                            value={Number(getAdditionalCostValue('AWS', 'archive', 'retrievalRequests')) || 0}
+                            onChange={(e) => updateAdditionalCost('AWS', 'archive', 'retrievalRequests', Number(e.target.value))}
+                            className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                            placeholder="0"
+                            min="0"
+                            step="1"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {activeProvider === 'Azure' && (
+                <>
+                  {activeTierTab === 'Hot' && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Read Operations (per 10,000)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'readOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'readOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Write Operations (per 10,000)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'writeOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'writeOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Query Acceleration - Data Scanned (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'queryDataScanned')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'queryDataScanned', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Query Acceleration - Data Returned (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'queryDataReturned')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'queryDataReturned', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Iterative Read Operations (per 10,000)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'iterativeReadOps')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'iterativeReadOps', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Iterative Write Operations (per 100)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'iterativeWriteOps')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'iterativeWriteOps', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Other Operations (per 10,000)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'hot', 'otherOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'otherOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {activeTierTab === 'Cold' && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Read Operations (per 10,000)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'cold', 'readOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'readOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Write Operations (per 10,000)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'cold', 'writeOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'writeOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Query Acceleration - Data Scanned (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'cold', 'queryDataScanned')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'queryDataScanned', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Query Acceleration - Data Returned (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'cold', 'queryDataReturned')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'queryDataReturned', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Iterative Write Operations (per 100)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'cold', 'iterativeWriteOps')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'iterativeWriteOps', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Data Retrieval (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'cold', 'dataRetrieved')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'dataRetrieved', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {activeTierTab === 'Archive' && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Data Transfer Out (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'dataTransferOut')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'dataTransferOut', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Write Operations
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'writeOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'writeOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Read Operations
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'readOperations')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'readOperations', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          High Priority Read Operations (per 100)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'highPriorityRead')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'highPriorityRead', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          High Priority Retrieval (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'highPriorityRetrieval')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'highPriorityRetrieval', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Iterative Write Operations (per 100)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'iterativeWriteOps')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'iterativeWriteOps', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-medium text-[#010101]">
+                          Data Retrieved (GB)
+                        </label>
+                        <input
+                          type="number"
+                          value={Number(getAdditionalCostValue('Azure', 'archive', 'dataRetrieved')) || 0}
+                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'dataRetrieved', Number(e.target.value))}
+                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+                          placeholder="0"
+                          min="0"
+                          step="1"
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+        </div>
+
+          {/* Back Button */}
+          <div className="mt-6 flex justify-start">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-6 py-2 bg-[#F9F4EE] text-[#010101] border border-[#E5DDD1] rounded-lg text-xs font-semibold hover:bg-[#E5DDD1] transition-colors flex items-center gap-2"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
