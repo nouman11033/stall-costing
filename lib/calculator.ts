@@ -94,10 +94,16 @@ export function calculateCombinations(input: BudgetInput): Combination[] {
   // If 'inbuilt' is selected, include combinations with inbuilt voice
   // If voice agents are selected, include those
   // If nothing is selected, default to inbuilt
-  const hasVoiceSelection = input.selectedVoiceProviders && input.selectedVoiceProviders.length > 0;
-  const useInbuilt = !hasVoiceSelection || input.selectedVoiceProviders?.includes('inbuilt') || false;
-  const selectedVoiceAgentIds = hasVoiceSelection 
-    ? input.selectedVoiceProviders.filter(v => v !== 'inbuilt')
+  const hasVoiceSelection =
+    Array.isArray(input.selectedVoiceProviders) &&
+    input.selectedVoiceProviders.length > 0;
+  const useInbuilt =
+    !hasVoiceSelection ||
+    (Array.isArray(input.selectedVoiceProviders) &&
+      input.selectedVoiceProviders.includes('inbuilt')) ||
+    false;
+  const selectedVoiceAgentIds = hasVoiceSelection
+    ? (input.selectedVoiceProviders ?? []).filter(v => v !== 'inbuilt')
     : [];
   const voiceAgentCombos = buildVoiceAgentCombos(input, selectedVoiceAgentIds);
   
