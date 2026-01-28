@@ -130,10 +130,10 @@ function calculateAdditionalCosts(
   }
 
   const tierCosts = additionalCosts[provider][tier];
-  const pricing = ADDITIONAL_COST_PRICING[provider];
   let total = 0;
 
   if (provider === 'aws') {
+    const pricing = ADDITIONAL_COST_PRICING.aws;
     // Data Transfer Out
     if (tierCosts.dataTransferOut) {
       total += tierCosts.dataTransferOut * pricing.dataTransferOut;
@@ -160,6 +160,7 @@ function calculateAdditionalCosts(
       total += tierCosts.retrievalRequests * requestPrice;
     }
   } else if (provider === 'azure') {
+    const pricing = ADDITIONAL_COST_PRICING.azure;
     // Data Transfer Out
     if (tierCosts.dataTransferOut) {
       total += tierCosts.dataTransferOut * pricing.dataTransferOut;
