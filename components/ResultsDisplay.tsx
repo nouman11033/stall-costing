@@ -1732,9 +1732,13 @@ function StorageCostBreakdown({
         });
       }
       if (tier === 'archive' && tierCosts.retrievalRequests) {
-        const requestPrice = tierCosts.retrievalType === 'Expedited' 
-          ? ('retrievalRequestExpedited' in pricing ? pricing.retrievalRequestExpedited : ('retrievalRequestStandard' in pricing ? pricing.retrievalRequestStandard : 0))
-          : ('retrievalRequestStandard' in pricing ? pricing.retrievalRequestStandard : 0);
+        let requestPrice = 0;
+        if (tierCosts.retrievalType === 'Expedited') {
+          requestPrice = 'retrievalRequestExpedited' in pricing ? (pricing.retrievalRequestExpedited as number) : 
+                        ('retrievalRequestStandard' in pricing ? (pricing.retrievalRequestStandard as number) : 0);
+        } else {
+          requestPrice = 'retrievalRequestStandard' in pricing ? (pricing.retrievalRequestStandard as number) : 0;
+        }
         costs.push({
           label: 'Retrieval Requests',
           value: tierCosts.retrievalRequests * requestPrice,
@@ -1749,49 +1753,49 @@ function StorageCostBreakdown({
           unit: `${tierCosts.dataTransferOut} GB × $${pricing.dataTransferOut}/GB`
         });
       }
-      if (tierCosts.readOperations) {
+      if (tierCosts.readOperations && 'readOperation' in pricing) {
         costs.push({
           label: 'Read Operations',
           value: (tierCosts.readOperations / 10000) * pricing.readOperation,
           unit: `${tierCosts.readOperations.toLocaleString()} ÷ 10,000 × $${pricing.readOperation}/10K`
         });
       }
-      if (tierCosts.writeOperations) {
+      if (tierCosts.writeOperations && 'writeOperation' in pricing) {
         costs.push({
           label: 'Write Operations',
           value: (tierCosts.writeOperations / 10000) * pricing.writeOperation,
           unit: `${tierCosts.writeOperations.toLocaleString()} ÷ 10,000 × $${pricing.writeOperation}/10K`
         });
       }
-      if (tierCosts.queryDataScanned) {
+      if (tierCosts.queryDataScanned && 'queryDataScanned' in pricing) {
         costs.push({
           label: 'Query Acceleration - Data Scanned',
           value: tierCosts.queryDataScanned * pricing.queryDataScanned,
           unit: `${tierCosts.queryDataScanned} GB × $${pricing.queryDataScanned}/GB`
         });
       }
-      if (tierCosts.queryDataReturned) {
+      if (tierCosts.queryDataReturned && 'queryDataReturned' in pricing) {
         costs.push({
           label: 'Query Acceleration - Data Returned',
           value: tierCosts.queryDataReturned * pricing.queryDataReturned,
           unit: `${tierCosts.queryDataReturned} GB × $${pricing.queryDataReturned}/GB`
         });
       }
-      if (tierCosts.iterativeReadOps) {
+      if (tierCosts.iterativeReadOps && 'iterativeReadOp' in pricing) {
         costs.push({
           label: 'Iterative Read Operations',
           value: (tierCosts.iterativeReadOps / 10000) * pricing.iterativeReadOp,
           unit: `${tierCosts.iterativeReadOps.toLocaleString()} ÷ 10,000 × $${pricing.iterativeReadOp}/10K`
         });
       }
-      if (tierCosts.iterativeWriteOps) {
+      if (tierCosts.iterativeWriteOps && 'iterativeWriteOp' in pricing) {
         costs.push({
           label: 'Iterative Write Operations',
           value: (tierCosts.iterativeWriteOps / 100) * pricing.iterativeWriteOp,
           unit: `${tierCosts.iterativeWriteOps.toLocaleString()} ÷ 100 × $${pricing.iterativeWriteOp}/100`
         });
       }
-      if (tier === 'hot' && tierCosts.otherOperations) {
+      if (tier === 'hot' && tierCosts.otherOperations && 'otherOperation' in pricing) {
         costs.push({
           label: 'Other Operations',
           value: (tierCosts.otherOperations / 10000) * pricing.otherOperation,
