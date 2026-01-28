@@ -405,7 +405,6 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
                 onToggleBookmark={() => toggleBookmark(combination.id)}
               />
             ))}
-        ))}
           </div>
         ) : (
           <div className="flex items-center justify-center h-full">
