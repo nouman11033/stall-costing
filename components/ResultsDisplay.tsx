@@ -922,7 +922,7 @@ function CombinationCard({
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#666" />
                       <YAxis tick={{ fontSize: 10 }} stroke="#666" />
                       <Tooltip 
-                        formatter={(value: number) => formatUSD(value)}
+                        formatter={(value: number | undefined) => formatUSD(value || 0)}
                         contentStyle={{ backgroundColor: '#F9F4EE', border: '1px solid #E5DDD1', borderRadius: '8px', fontSize: '11px' }}
                       />
                       <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
@@ -1446,7 +1446,7 @@ function CombinationCard({
                             ))}
                           </Pie>
                           <Tooltip 
-                            formatter={(value: number) => formatUSD(value)}
+                            formatter={(value: number | undefined) => formatUSD(value || 0)}
                             contentStyle={{ backgroundColor: '#F9F4EE', border: '1px solid #E5DDD1', borderRadius: '8px', fontSize: '11px' }}
                           />
                         </PieChart>
@@ -1875,7 +1875,7 @@ function StorageCostBreakdown({
               <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#666" />
               <YAxis tick={{ fontSize: 10 }} stroke="#666" />
               <Tooltip 
-                formatter={(value: number) => formatUSD(value)}
+                formatter={(value: number | undefined) => formatUSD(value || 0)}
                 contentStyle={{ backgroundColor: '#F9F4EE', border: '1px solid #E5DDD1', borderRadius: '8px', fontSize: '11px' }}
               />
               <Bar dataKey="value" fill="#EC4899" radius={[4, 4, 0, 0]} />
