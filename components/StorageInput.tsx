@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { AvatarDerived } from '@/components/BudgetForm';
 
 export interface StorageInput {
   totalSizeGB: number;
@@ -71,13 +72,77 @@ export interface StorageInput {
 interface StorageInputProps {
   storageInput: StorageInput;
   onChange: (input: StorageInput) => void;
+  avatarDerived?: AvatarDerived | null;
 }
 
-export default function StorageInput({ storageInput, onChange }: StorageInputProps) {
+// Format number to short form for display (e.g. 1000 -> 1K, 1000000 -> 1M)
+function formatMinutes(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return num.toString();
+}
+
+// Compute AWS/Azure param values from total monthly minutes (placeholder formulas)
+function paramsFromTotalMinutes(totalMinutes: number): Partial<StorageInput> {
+  const m = totalMinutes;
+  return {
+    aws: {
+      hot: {
+        putRequests: Math.round(m * 0.1),
+        getRequests: Math.round(m * 0.2),
+      },
+      cold: {
+        putRequests: Math.round(m * 0.05),
+        getRequests: Math.round(m * 0.1),
+        dataRetrieved: Math.round(m * 0.01),
+      },
+      archive: {
+        putRequests: Math.round(m * 0.02),
+        getRequests: Math.round(m * 0.02),
+        dataRetrieved: Math.round(m * 0.005),
+        retrievalType: 'Standard',
+        retrievalRequests: Math.round(m * 0.001),
+      },
+    },
+    azure: {
+      hot: {
+        readOperations: Math.round(m * 0.2 / 10000) * 10000,
+        writeOperations: Math.round(m * 0.1 / 10000) * 10000,
+        queryDataScanned: Math.round(m * 0.01),
+        queryDataReturned: Math.round(m * 0.005),
+        iterativeReadOps: Math.round(m * 0.05 / 10000) * 10000,
+        iterativeWriteOps: Math.round(m * 0.02 / 100) * 100,
+        otherOperations: Math.round(m * 0.03 / 10000) * 10000,
+      },
+      cold: {
+        readOperations: Math.round(m * 0.1 / 10000) * 10000,
+        writeOperations: Math.round(m * 0.05 / 10000) * 10000,
+        queryDataScanned: Math.round(m * 0.005),
+        queryDataReturned: Math.round(m * 0.002),
+        iterativeWriteOps: Math.round(m * 0.01 / 100) * 100,
+        dataRetrieved: Math.round(m * 0.01),
+      },
+      archive: {
+        readOperations: Math.round(m * 0.02),
+        writeOperations: Math.round(m * 0.01),
+        highPriorityRead: Math.round(m * 0.001 / 100) * 100,
+        highPriorityRetrieval: Math.round(m * 0.002),
+        iterativeWriteOps: Math.round(m * 0.005 / 100) * 100,
+        dataRetrieved: Math.round(m * 0.005),
+      },
+    },
+  };
+}
+
+export default function StorageInput({ storageInput, onChange, avatarDerived }: StorageInputProps) {
   const maxSizeGB = 500 * 1024; // 500 TB in GB
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [activeProvider, setActiveProvider] = useState<'AWS' | 'Azure'>('AWS');
   const [activeTierTab, setActiveTierTab] = useState<'Hot' | 'Cold' | 'Archive'>('Hot');
+  const minMinutes = avatarDerived?.minMinutesPerMonth ?? 0;
+  const maxMinutes = avatarDerived?.maxMinutesPerMonth ?? 100000;
+  const defaultSliderMinutes = minMinutes > 0 || maxMinutes > 0 ? Math.round((minMinutes + maxMinutes) / 2) : 50000;
+  const [sliderTotalMinutes, setSliderTotalMinutes] = useState(defaultSliderMinutes);
 
   const selectedProviders = storageInput.storageProviders || ['AWS', 'Azure'];
   const hasBothProviders = selectedProviders.length === 2;
@@ -151,11 +216,25 @@ export default function StorageInput({ storageInput, onChange }: StorageInputPro
     return (providerData[tier] as any)[field] ?? 0;
   };
 
+  const handleSliderMinutesChange = useCallback((totalMinutes: number) => {
+    setSliderTotalMinutes(totalMinutes);
+    const derived = paramsFromTotalMinutes(totalMinutes);
+    onChange({
+      ...storageInput,
+      ...derived,
+    });
+  }, [storageInput, onChange]);
+
   const handleNext = () => {
     if (selectedProviders.length > 0) {
       if (hasOneProvider) {
         setActiveProvider(selectedProviders[0] as 'AWS' | 'Azure');
       }
+      const min = avatarDerived?.minMinutesPerMonth ?? 0;
+      const max = avatarDerived?.maxMinutesPerMonth ?? 100000;
+      const mid = (min > 0 || max > 0) ? Math.round((min + max) / 2) : 50000;
+      setSliderTotalMinutes(mid);
+      onChange({ ...storageInput, ...paramsFromTotalMinutes(mid) });
       setCurrentStep(2);
     }
   };
@@ -426,6 +505,41 @@ export default function StorageInput({ storageInput, onChange }: StorageInputPro
       {currentStep === 2 && (
         <div className="p-6 flex-1 flex flex-col">
           <div className="space-y-4 flex-1">
+            {/* Total number of minutes slider – drives param numbers */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[#010101]">
+                  Total number of minutes
+                </label>
+                <span className="text-xs font-semibold text-[#010101]">
+                  {formatMinutes(sliderTotalMinutes)}
+                </span>
+              </div>
+              <div
+                className="tier-slider-container relative"
+                style={{ '--slider-progress': `${maxMinutes > minMinutes ? ((sliderTotalMinutes - minMinutes) / (maxMinutes - minMinutes)) * 100 : 0}%` } as React.CSSProperties}
+              >
+                <input
+                  type="range"
+                  min={minMinutes}
+                  max={Math.max(maxMinutes, minMinutes + 1)}
+                  step={Math.max(1, Math.floor((maxMinutes - minMinutes) / 500))}
+                  value={sliderTotalMinutes}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setSliderTotalMinutes(v);
+                    handleSliderMinutesChange(v);
+                  }}
+                  className="tier-slider w-full appearance-none cursor-pointer relative z-10"
+                  style={{ background: 'transparent', height: '6px' }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-[#4F4F4E] mt-1">
+                <span>{formatMinutes(minMinutes)}</span>
+                <span>{formatMinutes(maxMinutes)}</span>
+              </div>
+            </div>
+
             {/* Provider Toggle (only if both selected) */}
             {hasBothProviders && (
               <div className="relative mb-4">

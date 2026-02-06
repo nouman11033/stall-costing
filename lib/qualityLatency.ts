@@ -4,18 +4,16 @@ import { Combination } from './calculator';
 const AVATAR_PROVIDER_QUALITY: Record<string, number> = {
   'heygen': 8.0,
   'anam': 7.5,
-  'tevus': 7.8,
+  'tavus': 7.8,
   'Default': 7.0,
 };
 
 const VOICE_AGENT_QUALITY: Record<string, number> = {
   'inbuilt': 7.5,
-  'gemini-live': 8.0,
-  'gpt-realtime': 8.5,
   'hume-pro': 8.2,
   'hume-scale': 7.8,
   'hume-business': 8.5,
-  'grok': 7.5,
+  'elevenlabs': 8.0,
   'Default': 7.0,
 };
 

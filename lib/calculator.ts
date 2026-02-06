@@ -20,8 +20,8 @@ export interface BudgetInput {
   concurrentSessions: number;
   minutesPerMonth: number;
   // Provider selections
-  selectedAvatarProviders?: string[]; // ['heygen', 'anam', 'tevus']
-  selectedVoiceProviders?: string[]; // ['inbuilt', 'gemini-live', 'gpt-realtime', 'hume-pro', 'hume-scale', 'hume-business', 'grok']
+  selectedAvatarProviders?: string[]; // ['heygen', 'anam', 'tavus']
+  selectedVoiceProviders?: string[]; // ['inbuilt', 'hume-pro', 'hume-scale', 'hume-business', 'elevenlabs']
   selectedHostingOptions?: string[]; // ['azure', 'railway', 'vercel', 'vercel-railway']
   // Storage parameters
   storageTotalSizeGB: number;
@@ -224,7 +224,7 @@ function calculateCombination(
       }
       voiceCostINR = convertUSDToINR(voiceCostUSD);
     } else if (voiceAgent.pricingModel === 'per-minute-per-concurrency') {
-      // Per-minute per concurrency pricing (Grok)
+      // Per-minute per concurrency pricing
       // Cost = price per minute × minutes × concurrent sessions
       voicePerMinuteCostUSD = (voiceAgent.pricePerMinute || 0) * input.minutesPerMonth * input.concurrentSessions;
       voiceCostUSD = voicePerMinuteCostUSD;
@@ -294,7 +294,7 @@ function calculateCombination(
   
   // Avatar provider bonuses
   const avatarProvider = avatarPlan.provider.toLowerCase();
-  if (avatarProvider === 'tevus') {
+  if (avatarProvider === 'tavus') {
     score += 100;
   } else if (avatarProvider === 'anam') {
     score += 90;
@@ -307,12 +307,8 @@ function calculateCombination(
     const voiceId = voiceAgent.id.toLowerCase();
     if (voiceId.includes('hume')) {
       score += 100;
-    } else if (voiceId.includes('gemini')) {
+    } else if (voiceId.includes('elevenlabs')) {
       score += 70;
-    } else if (voiceId.includes('gpt')) {
-      score += 10;
-    } else if (voiceId.includes('grok')) {
-      score += 5;
     }
   }
   
@@ -435,6 +431,144 @@ function isValidCombination(combination: Combination, input: BudgetInput): boole
   return true;
 }
 
+/** Returns cost breakdown for a combination at given input (minutesPerMonth, concurrentSessions). Used for min/max range display. */
+export function getCostBreakdownForInput(combination: Combination, input: BudgetInput): {
+  avatarCostUSD: number;
+  voiceCostUSD: number;
+  hostingCostINR: number;
+  storageCostINR: number;
+  totalCostUSD: number;
+} {
+  const { avatarPlan, avatarAccounts, voiceAgent, voiceAccounts, hostingOption, storageOption } = combination;
+  const isAvatarCombo = avatarPlan.tier === 'Combo' || avatarPlan.id.includes('+');
+  const avatarFactor = isAvatarCombo ? 1 : avatarAccounts;
+
+  const avatarBaseCostUSD = avatarPlan.monthlyPrice * avatarFactor;
+  const includedMinutes = avatarPlan.minutes * avatarFactor;
+  const additionalMinutes = Math.max(0, input.minutesPerMonth - includedMinutes);
+  const avatarAdditionalCostUSD = additionalMinutes * avatarPlan.additionalPerMin;
+  const avatarCostUSD = avatarBaseCostUSD + avatarAdditionalCostUSD;
+
+  let voiceCostUSD = 0;
+  const isVoiceCombo = voiceAgent ? voiceAgent.id.includes('+') || voiceAgent.name?.includes('combo') : false;
+  const voiceFactor = isVoiceCombo ? 1 : voiceAccounts;
+
+  if (voiceAgent) {
+    if (voiceAgent.pricingModel === 'tokens') {
+      const voiceTotalTokens = input.minutesPerMonth * (voiceAgent.tokensPerMinute || 1000);
+      voiceCostUSD = (voiceTotalTokens / 1_000_000) * (voiceAgent.pricePer1MTokens || 0);
+    } else if (voiceAgent.pricingModel === 'per-minute') {
+      const minimumCostPerAccountUSD = voiceAgent.monthlyMinimumCost || voiceAgent.monthlyBaseCost || 0;
+      if (isVoiceCombo) {
+        const variableCostUSD = (voiceAgent.pricePerMinute || 0) * input.minutesPerMonth;
+        voiceCostUSD = Math.max(minimumCostPerAccountUSD, variableCostUSD);
+      } else {
+        const perAccountMinutes = input.minutesPerMonth / voiceFactor;
+        const variableCostPerAccountUSD = (voiceAgent.pricePerMinute || 0) * perAccountMinutes;
+        const perAccountCostUSD = Math.max(minimumCostPerAccountUSD, variableCostPerAccountUSD);
+        voiceCostUSD = perAccountCostUSD * voiceFactor;
+      }
+    } else if (voiceAgent.pricingModel === 'per-minute-per-concurrency') {
+      voiceCostUSD = (voiceAgent.pricePerMinute || 0) * input.minutesPerMonth * input.concurrentSessions;
+    }
+  }
+
+  const hostingBaseCostINR = hostingOption.baseMonthlyCostINR;
+  const hostingUsersCostINR = input.users * hostingOption.costPerUserPerMonthINR;
+  const calls = input.minutesPerMonth / 10;
+  const hostingCallsCostINR = calls * hostingOption.costPerCallINR;
+  const hostingCostINR = hostingBaseCostINR + hostingUsersCostINR + hostingCallsCostINR;
+
+  const storageCostUSD = storageOption.monthlyCostUSD * input.storageNumberOfDatabases;
+  const storageCostINR = convertUSDToINR(storageCostUSD);
+
+  const totalCostINR = convertUSDToINR(avatarCostUSD) + convertUSDToINR(voiceCostUSD) + hostingCostINR + storageCostINR + MISC_EXPENSES_MONTHLY_INR;
+  const totalCostUSD = convertINRToUSD(totalCostINR);
+
+  return { avatarCostUSD, voiceCostUSD, hostingCostINR, storageCostINR, totalCostUSD };
+}
+
+/** Returns full breakdown for a combination at given input. Used for dynamic results page (slider-driven amounts and charts). */
+export function getFullBreakdownForInput(combination: Combination, input: BudgetInput): Combination['breakdown'] {
+  const { avatarPlan, avatarAccounts, voiceAgent, voiceAccounts, hostingOption, storageOption } = combination;
+  const isAvatarCombo = avatarPlan.tier === 'Combo' || avatarPlan.id.includes('+');
+  const avatarFactor = isAvatarCombo ? 1 : avatarAccounts;
+
+  const avatarBaseCostUSD = avatarPlan.monthlyPrice * avatarFactor;
+  const includedMinutes = avatarPlan.minutes * avatarFactor;
+  const additionalMinutes = Math.max(0, input.minutesPerMonth - includedMinutes);
+  const avatarAdditionalCostUSD = additionalMinutes * avatarPlan.additionalPerMin;
+  const avatarCostUSD = avatarBaseCostUSD + avatarAdditionalCostUSD;
+  const avatarCostINR = convertUSDToINR(avatarCostUSD);
+
+  let voiceCostUSD = 0;
+  let voiceBaseCostUSD: number | undefined = undefined;
+  let voicePerMinuteCostUSD: number | undefined = undefined;
+  let voiceTotalTokens: number | undefined = undefined;
+  const isVoiceCombo = voiceAgent ? voiceAgent.id.includes('+') || voiceAgent.name?.includes('combo') : false;
+  const voiceFactor = isVoiceCombo ? 1 : voiceAccounts;
+
+  if (voiceAgent) {
+    if (voiceAgent.pricingModel === 'tokens') {
+      voiceTotalTokens = input.minutesPerMonth * (voiceAgent.tokensPerMinute || 1000);
+      voiceCostUSD = (voiceTotalTokens / 1_000_000) * (voiceAgent.pricePer1MTokens || 0);
+    } else if (voiceAgent.pricingModel === 'per-minute') {
+      const minimumCostPerAccountUSD = voiceAgent.monthlyMinimumCost || voiceAgent.monthlyBaseCost || 0;
+      if (isVoiceCombo) {
+        const variableCostUSD = (voiceAgent.pricePerMinute || 0) * input.minutesPerMonth;
+        voicePerMinuteCostUSD = variableCostUSD;
+        voiceBaseCostUSD = minimumCostPerAccountUSD;
+        voiceCostUSD = Math.max(minimumCostPerAccountUSD, variableCostUSD);
+      } else {
+        const perAccountMinutes = input.minutesPerMonth / voiceFactor;
+        const variableCostPerAccountUSD = (voiceAgent.pricePerMinute || 0) * perAccountMinutes;
+        const perAccountCostUSD = Math.max(minimumCostPerAccountUSD, variableCostPerAccountUSD);
+        voicePerMinuteCostUSD = (voiceAgent.pricePerMinute || 0) * input.minutesPerMonth;
+        voiceBaseCostUSD = minimumCostPerAccountUSD * voiceFactor;
+        voiceCostUSD = perAccountCostUSD * voiceFactor;
+      }
+    } else if (voiceAgent.pricingModel === 'per-minute-per-concurrency') {
+      voicePerMinuteCostUSD = (voiceAgent.pricePerMinute || 0) * input.minutesPerMonth * input.concurrentSessions;
+      voiceCostUSD = voicePerMinuteCostUSD;
+    }
+  }
+  const voiceCostINR = convertUSDToINR(voiceCostUSD);
+
+  const hostingBaseCostINR = hostingOption.baseMonthlyCostINR;
+  const hostingUsersCostINR = input.users * hostingOption.costPerUserPerMonthINR;
+  const calls = input.minutesPerMonth / 10;
+  const hostingCallsCostINR = calls * hostingOption.costPerCallINR;
+  const hostingCostINR = hostingBaseCostINR + hostingUsersCostINR + hostingCallsCostINR;
+
+  const storageCostUSD = storageOption.monthlyCostUSD * input.storageNumberOfDatabases;
+  const storageCostINR = convertUSDToINR(storageCostUSD);
+
+  const totalCostINR = avatarCostINR + voiceCostINR + hostingCostINR + storageCostINR + MISC_EXPENSES_MONTHLY_INR;
+  const totalCostUSD = convertINRToUSD(totalCostINR);
+
+  return {
+    avatarCostINR,
+    avatarCostUSD,
+    avatarBaseCostUSD,
+    avatarAdditionalMinutes: additionalMinutes,
+    avatarAdditionalCostUSD,
+    voiceCostINR,
+    voiceCostUSD,
+    voiceBaseCostUSD,
+    voicePerMinuteCostUSD,
+    voiceTotalTokens,
+    hostingCostINR,
+    hostingBaseCostINR,
+    hostingUsersCostINR,
+    hostingCallsCostINR,
+    storageCostINR,
+    storageCostUSD,
+    miscExpensesINR: MISC_EXPENSES_MONTHLY_INR,
+    totalCostINR,
+    totalCostUSD,
+  };
+}
+
 // Helper function to estimate avatar cost for a plan/combo
 function estimateAvatarCost(plan: AvatarPlan, accounts: number, minutesPerMonth: number): number {
   const isCombo = plan.tier === 'Combo' || plan.id.includes('+');
@@ -494,7 +628,7 @@ function buildAvatarPlanCombos(input: BudgetInput): { plan: AvatarPlan; accounts
         return a.cost - b.cost; // Prefer cheaper
       });
 
-    // If we have valid single plans, include all within 2% of cheapest
+    // Include all valid single plans (no combos for avatars)
     if (validSingles.length > 0) {
       const cheapestCost = validSingles[0].cost;
       const threshold = cheapestCost * 1.02; // 2% tolerance for avatar providers
@@ -505,109 +639,11 @@ function buildAvatarPlanCombos(input: BudgetInput): { plan: AvatarPlan; accounts
           combos.push({ plan: single.plan, accounts: 1 });
         }
       }
-
-      // Only create combos if a combo might be cheaper than the cheapest single
-      // We'll check each combo and only add it if it's actually cheaper
-      // Enterprise plans cannot be used in combos
-      for (let i = 0; i < plans.length; i++) {
-        for (let j = i; j < plans.length; j++) {
-          const a = plans[i];
-          const b = plans[j];
-          
-          // Skip if either plan is an Enterprise plan (annual only)
-          if (a.isAnnualOnly || b.isAnnualOnly || a.tier === 'Enterprise' || b.tier === 'Enterprise') {
-            continue;
-          }
-          
-          const sortedPlans = [a, b].sort((p1, p2) => p1.id.localeCompare(p2.id));
-          const aggregated = aggregateAvatarPlans(sortedPlans);
-          
-          // Only include combo if it meets concurrency
-          if (meetsConcurrencyRequirement(aggregated, 2, input.concurrentSessions)) {
-            const comboCost = estimateAvatarCost(aggregated, 2, input.minutesPerMonth);
-            
-            // Only add if combo is more than 5% cheaper than cheapest single
-            if (comboCost < cheapestCost * 0.95) {
-              combos.push({ plan: aggregated, accounts: 2 });
-            }
-          }
-        }
-      }
-    } else {
-      // No single plan meets concurrency - we need combos
-      // Enterprise plans cannot be used in combos
-      for (let i = 0; i < plans.length; i++) {
-        for (let j = i; j < plans.length; j++) {
-          const a = plans[i];
-          const b = plans[j];
-          
-          // Skip if either plan is an Enterprise plan (annual only)
-          if (a.isAnnualOnly || b.isAnnualOnly || a.tier === 'Enterprise' || b.tier === 'Enterprise') {
-            continue;
-          }
-          
-          const sortedPlans = [a, b].sort((p1, p2) => p1.id.localeCompare(p2.id));
-          const aggregated = aggregateAvatarPlans(sortedPlans);
-          
-          if (meetsConcurrencyRequirement(aggregated, 2, input.concurrentSessions)) {
-            combos.push({ plan: aggregated, accounts: 2 });
-          }
-        }
-      }
     }
+    // Note: Combo creation removed - only single plans are used for avatars
   }
 
   return combos;
-}
-
-function aggregateAvatarPlans(plans: AvatarPlan[]): AvatarPlan {
-  const provider = plans[0].provider;
-  const id = plans.map((p) => p.id).join('+');
-  const name = `${provider.toUpperCase()} combo: ${plans.map((p) => p.name).join(' + ')}`;
-  const monthlyPrice = plans.reduce((sum, p) => sum + p.monthlyPrice, 0);
-  const minutes = plans.reduce((sum, p) => sum + p.minutes, 0);
-  const additionalPerMin = Math.min(...plans.map((p) => p.additionalPerMin));
-
-  // Concurrency: if any is unlimited (undefined), keep undefined; else sum
-  const hasUnlimited = plans.some((p) => p.concurrency === undefined);
-  const concurrency = hasUnlimited
-    ? undefined
-    : plans.reduce((sum, p) => sum + (p.concurrency || 0), 0);
-
-  const maxLength = plans.some((p) => p.maxLength === undefined)
-    ? undefined
-    : Math.max(...plans.map((p) => p.maxLength || 0));
-
-  const hasInbuiltVoice = plans.every((p) => p.hasInbuiltVoice);
-
-  // For combos, if any plan is annual-only, the combo is also annual-only
-  const hasAnnualOnly = plans.some((p) => p.isAnnualOnly);
-  const totalAnnualMinutes = hasAnnualOnly
-    ? plans.reduce((sum, p) => sum + (p.totalAnnualMinutes || 0), 0)
-    : undefined;
-  const annualCommitmentUSD = hasAnnualOnly
-    ? plans.reduce((sum, p) => sum + (p.annualCommitmentUSD || 0), 0)
-    : undefined;
-  const note = hasAnnualOnly
-    ? plans.map((p) => p.note).filter(Boolean).join('; ')
-    : undefined;
-
-  return {
-    id,
-    name,
-    provider,
-    tier: 'Combo',
-    monthlyPrice,
-    minutes,
-    maxLength,
-    concurrency,
-    additionalPerMin,
-    hasInbuiltVoice,
-    isAnnualOnly: hasAnnualOnly || undefined,
-    annualCommitmentUSD,
-    totalAnnualMinutes,
-    note,
-  };
 }
 
 // Helper function to estimate voice agent cost
@@ -688,22 +724,13 @@ function buildVoiceAgentCombos(input: BudgetInput, selectedVoiceAgentIds: string
   let eligibleAgents = VOICE_AGENTS;
   if (selectedVoiceAgentIds.length > 0) {
     eligibleAgents = VOICE_AGENTS.filter((v) => {
-      // Map display names to IDs
-      // If 'gemini' is selected, include gemini-live
-      if (selectedVoiceAgentIds.includes('gemini') || selectedVoiceAgentIds.includes('gemini-live')) {
-        if (v.id === 'gemini-live') return true;
-      }
-      // If 'gpt' is selected, include gpt-realtime
-      if (selectedVoiceAgentIds.includes('gpt') || selectedVoiceAgentIds.includes('gpt-realtime')) {
-        if (v.id === 'gpt-realtime') return true;
-      }
       // If 'hume' is selected, include all hume agents (pro, scale, business, enterprise)
       if (selectedVoiceAgentIds.includes('hume') || selectedVoiceAgentIds.some(id => id.startsWith('hume-'))) {
         if (v.id.startsWith('hume-')) return true;
       }
-      // If 'grok' is selected, include grok
-      if (selectedVoiceAgentIds.includes('grok')) {
-        if (v.id === 'grok') return true;
+      // If 'elevenlabs' is selected, include elevenlabs
+      if (selectedVoiceAgentIds.includes('elevenlabs')) {
+        if (v.id === 'elevenlabs') return true;
       }
       // Direct ID match (for backward compatibility)
       return selectedVoiceAgentIds.includes(v.id);
@@ -768,64 +795,9 @@ function buildVoiceAgentCombos(input: BudgetInput, selectedVoiceAgentIds: string
     }
   }
 
-  // For Hume combos, only create if:
-  // 1. No single agent meets concurrency, OR
-  // 2. Combo is cheaper than the cheapest single
-  const needsCombo = lowestTierSingle === null;
-
-  if (needsCombo || cheapestSingleCost !== Infinity) {
-    for (let i = 0; i < sortedHumeAgents.length; i++) {
-      for (let j = i; j < sortedHumeAgents.length; j++) {
-        const a = sortedHumeAgents[i];
-        const b = sortedHumeAgents[j];
-        const sortedAgents = [a, b].sort((a1, a2) => a1.id.localeCompare(a2.id));
-        const aggregated = aggregateHumeAgents(sortedAgents);
-        
-        const comboMeetsConcurrency = meetsVoiceConcurrencyRequirement(aggregated, 2, input.concurrentSessions);
-        
-        if (comboMeetsConcurrency) {
-          const comboCost = estimateVoiceAgentCost(aggregated, 2, input.minutesPerMonth, input.concurrentSessions);
-          
-          // Only add combo if:
-          // - No single agent meets concurrency, OR
-          // - Combo is more than 5% cheaper than cheapest single
-          if (needsCombo || comboCost < cheapestSingleCost * 0.95) {
-            combos.push({ agent: aggregated, accounts: 2, cost: comboCost });
-          }
-        }
-      }
-    }
-  }
+  // Note: Combo creation removed for Hume - only single agents are used
 
   // Remove cost property before returning (it was just for comparison)
   return combos.map(({ cost, ...rest }) => rest);
-}
-
-function aggregateHumeAgents(agents: VoiceAgent[]): VoiceAgent {
-  // All Hume plans are per-minute
-  const id = agents.map((a) => a.id).join('+');
-  const name = `Hume combo: ${agents.map((a) => a.name).join(' + ')}`;
-
-  // Pricing: per-minute uses the minimum rate; minimum base cost sums
-  const pricePerMinute = Math.min(...agents.map((a) => a.pricePerMinute || 0));
-  const monthlyMinimumCost = agents
-    .map((a) => a.monthlyMinimumCost || a.monthlyBaseCost || 0)
-    .reduce((sum, v) => sum + v, 0);
-
-  // Concurrency: if any unlimited, undefined else sum
-  const hasUnlimited = agents.some((a) => a.concurrency === undefined);
-  const concurrency = hasUnlimited
-    ? undefined
-    : agents.reduce((sum, a) => sum + (a.concurrency || 0), 0);
-
-  return {
-    id,
-    name,
-    pricingModel: 'per-minute',
-    pricePerMinute,
-    monthlyBaseCost: monthlyMinimumCost,
-    monthlyMinimumCost,
-    concurrency,
-  };
 }
 

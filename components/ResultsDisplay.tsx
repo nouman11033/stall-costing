@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Combination } from '@/lib/calculator';
+import { Combination, getCostBreakdownForInput, getFullBreakdownForInput } from '@/lib/calculator';
+import type { BudgetInput } from '@/lib/calculator';
 import { convertUSDToINR, convertINRToUSD } from '@/lib/pricing';
-import { CheckCircle, XCircle, AlertTriangle, ChevronDown, ChevronUp, Filter, X, Download } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Filter, X, Download } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import * as XLSX from 'xlsx';
 import { calculateLatency, calculateQuality } from '@/lib/qualityLatency';
@@ -14,6 +15,10 @@ interface ResultsDisplayProps {
   isCalculating: boolean;
   users?: number;
   concurrentSessions?: number;
+  /** Full calculation input (from localStorage) for min/max range display */
+  calculationInput?: any;
+  /** When set, amounts and charts use this input (slider-driven); range below amounts stays from calculationInput */
+  sliderInput?: BudgetInput | null;
 }
 
 interface Filters {
@@ -26,12 +31,11 @@ interface Filters {
 const formatProviderName = (provider: string): string => {
   const providerMap: Record<string, string> = {
     'heygen': 'HeyGen',
-    'tevus': 'Tavus',
+    'tavus': 'Tavus',
     'anam': 'Anam',
     'inbuilt': 'Inbuilt',
-    'gemini': 'Gemini',
     'hume': 'Hume',
-    'gpt': 'GPT',
+    'elevenlabs': 'ElevenLabs',
     'azure': 'Azure',
     'aws': 'AWS',
     'railway': 'Railway',
@@ -40,7 +44,14 @@ const formatProviderName = (provider: string): string => {
   return providerMap[provider.toLowerCase()] || provider.charAt(0).toUpperCase() + provider.slice(1);
 };
 
-export default function ResultsDisplay({ results, isCalculating, users = 100, concurrentSessions = 10 }: ResultsDisplayProps) {
+// Map voice agent id to filter key (e.g. hume-pro, hume-business -> hume) so filters show provider only
+const getVoiceProviderKey = (voiceId: string): string => {
+  if (!voiceId || voiceId === 'inbuilt') return 'inbuilt';
+  if (voiceId.startsWith('hume-')) return 'hume';
+  return voiceId;
+};
+
+export default function ResultsDisplay({ results, isCalculating, users = 100, concurrentSessions = 10, calculationInput, sliderInput }: ResultsDisplayProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [filters, setFilters] = useState<Filters>({
@@ -82,10 +93,10 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
     }
   }, [viewMode]);
 
-  // Get unique values for filter options
+  // Get unique values for filter options (voice by provider only: Hume, not Hume Business etc.)
   const filterOptions = useMemo(() => {
     const avatarProviders = Array.from(new Set(results.map(r => r.avatarPlan.provider)));
-    const voiceAgents = Array.from(new Set(results.map(r => r.voiceAgent?.id || 'inbuilt')));
+    const voiceAgents = Array.from(new Set(results.map(r => getVoiceProviderKey(r.voiceAgent?.id || 'inbuilt'))));
     const hostingOptions = Array.from(new Set(results.map(r => r.hostingOption.id)));
     return { avatarProviders, voiceAgents, hostingOptions };
   }, [results]);
@@ -98,9 +109,9 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
         return false;
       }
       
-      // Voice agent filter
-      const voiceId = combination.voiceAgent?.id || 'inbuilt';
-      if (filters.voiceAgents.length > 0 && !filters.voiceAgents.includes(voiceId)) {
+      // Voice agent filter (by provider: e.g. "Hume" matches any Hume plan)
+      const voiceProviderKey = getVoiceProviderKey(combination.voiceAgent?.id || 'inbuilt');
+      if (filters.voiceAgents.length > 0 && !filters.voiceAgents.includes(voiceProviderKey)) {
         return false;
       }
       
@@ -369,7 +380,7 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
                 >
                   {filterOptions.voiceAgents.map(agent => (
                     <option key={agent} value={agent}>
-                      {agent === 'inbuilt' ? 'Inbuilt (Avatar)' : agent.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                      {agent === 'inbuilt' ? 'Inbuilt (Avatar)' : formatProviderName(agent)}
                     </option>
                   ))}
                 </select>
@@ -419,6 +430,8 @@ export default function ResultsDisplay({ results, isCalculating, users = 100, co
                 rank={index + 1} 
                 users={users} 
                 concurrentSessions={concurrentSessions}
+                calculationInput={calculationInput}
+                sliderInput={sliderInput}
                 isBookmarked={bookmarks.has(combination.id)}
                 onToggleBookmark={() => toggleBookmark(combination.id)}
               />
@@ -450,6 +463,8 @@ function CombinationCard({
   rank, 
   users, 
   concurrentSessions,
+  calculationInput,
+  sliderInput,
   isBookmarked,
   onToggleBookmark
 }: { 
@@ -457,6 +472,8 @@ function CombinationCard({
   rank: number; 
   users: number; 
   concurrentSessions: number;
+  calculationInput?: any;
+  sliderInput?: BudgetInput | null;
   isBookmarked: boolean;
   onToggleBookmark: () => void;
 }) {
@@ -464,6 +481,12 @@ function CombinationCard({
   const [storageInput, setStorageInput] = useState<any>(null);
   const [inputData, setInputData] = useState<any>(null);
   const bookmarkRef = useRef<any>(null);
+
+  // Display breakdown: slider-driven when sliderInput is set, else fixed (average) from combination
+  const displayBreakdown = useMemo(() => {
+    if (sliderInput) return getFullBreakdownForInput(combination, sliderInput);
+    return combination.breakdown;
+  }, [combination, sliderInput]);
   
   const [isAnimating, setIsAnimating] = useState(false);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -609,10 +632,10 @@ function CombinationCard({
   }, []);
   
   useEffect(() => {
-    const calculationInput = localStorage.getItem('calculationInput');
-    if (calculationInput) {
+    const stored = localStorage.getItem('calculationInput');
+    if (stored) {
       try {
-        const input = JSON.parse(calculationInput);
+        const input = JSON.parse(stored);
         setStorageInput({
           totalSizeGB: input.storageTotalSizeGB,
           tierAllocation: input.storageTierAllocation,
@@ -629,14 +652,29 @@ function CombinationCard({
       }
     }
   }, [users, concurrentSessions]);
-  
-  const qualityScore = calculateQuality(combination, users, concurrentSessions).overallQualityScore;
-  const fitsStandard = qualityScore > 5;
-  
-  const badgeColor = fitsStandard
-    ? 'bg-green-100 text-green-800'
-    : 'bg-red-100 text-red-800';
 
+  // Min/max cost range for display (min = min minutes + min concurrency, max = max minutes + max concurrency)
+  const costRange = useMemo(() => {
+    if (!calculationInput) return null;
+    const u = calculationInput.users ?? users;
+    const minMinutesPerMonth = calculationInput.minMinutesPerMonth ?? Math.round(u * 0.5 * 24 * (calculationInput.minMinutesPerUser ?? 10));
+    const maxMinutesPerMonth = calculationInput.maxMinutesPerMonth ?? Math.round(u * 0.5 * 24 * (calculationInput.maxMinutesPerUser ?? 50));
+    const concurrency5 = calculationInput.concurrentSessions5Percent ?? 0;
+    const concurrency10 = calculationInput.concurrentSessions10Percent ?? 10;
+    const inputMin = { ...calculationInput, users: u, minutesPerMonth: minMinutesPerMonth, concurrentSessions: concurrency5 };
+    const inputMax = { ...calculationInput, users: u, minutesPerMonth: maxMinutesPerMonth, concurrentSessions: concurrency10 };
+    const minBreakdown = getCostBreakdownForInput(combination, inputMin);
+    const maxBreakdown = getCostBreakdownForInput(combination, inputMax);
+    return {
+      avatarMinUSD: minBreakdown.avatarCostUSD,
+      avatarMaxUSD: maxBreakdown.avatarCostUSD,
+      voiceMinUSD: minBreakdown.voiceCostUSD,
+      voiceMaxUSD: maxBreakdown.voiceCostUSD,
+      totalMinUSD: minBreakdown.totalCostUSD,
+      totalMaxUSD: maxBreakdown.totalCostUSD,
+    };
+  }, [combination, calculationInput, users]);
+  
   const formatINR = (amount: number) => `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   const formatUSD = (amount: number) => `$${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
@@ -647,22 +685,16 @@ function CombinationCard({
     >
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 via-indigo-50/0 to-purple-50/0 dark:from-blue-950/0 dark:via-indigo-950/0 dark:to-purple-950/0 group-hover:from-blue-50/30 group-hover:via-indigo-50/20 group-hover:to-purple-50/30 dark:group-hover:from-blue-950/20 dark:group-hover:via-indigo-950/10 dark:group-hover:to-purple-950/20 transition-all duration-500 pointer-events-none"></div>
       
-      {/* Sticker Badge - Top Left Corner */}
-      <div className="absolute -top-1 -left-1 z-20 transform -rotate-12 origin-center pointer-events-none">
-        <div className={`px-4 py-1.5 rounded-md ${badgeColor} shadow-xl backdrop-blur-sm border-2 border-white/50 dark:border-gray-900/50`}>
-            {fitsStandard ? (
+      {/* Annual Commitment Banner - Top Left Corner (only when avatar plan is annual) */}
+      {combination.avatarPlan.isAnnualOnly && (
+        <div className="absolute -top-1 -left-1 z-20 transform -rotate-12 origin-center pointer-events-none">
+          <div className="px-4 py-1.5 rounded-md bg-amber-100 text-amber-900 shadow-xl backdrop-blur-sm border-2 border-white/50 dark:border-gray-900/50">
             <span className="flex items-center text-[0.6rem] font-bold">
-              <CheckCircle className="w-2.5 h-2.5 mr-1" />
-                Fits Standard
-              </span>
-            ) : (
-            <span className="flex items-center text-[0.6rem] font-bold">
-              <XCircle className="w-2.5 h-2.5 mr-1" />
-                Outside Standard
-              </span>
-            )}
+              Annual Commitment
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bookmark Animation - Top Right Corner Sticker */}
       <div
@@ -728,51 +760,56 @@ function CombinationCard({
         {/* Total Cost */}
         <div className="flex-shrink-0 text-center sm:text-left min-w-[140px]">
           <div className="text-2xl font-extrabold text-[#010101]">
-            {formatUSD(combination.breakdown.totalCostUSD)}
+            {formatUSD(displayBreakdown.totalCostUSD)}
           </div>
-          <div className="text-sm font-semibold text-[#010101]/60 mt-1">
-            {formatINR(combination.totalCostINR)}
-          </div>
+          {costRange && (
+            <div className="text-xs text-[#4F4F4E] mt-1.5">
+              {formatUSD(costRange.totalMinUSD)} – {formatUSD(costRange.totalMaxUSD)}
+            </div>
+          )}
           <div className="text-xs text-[#4F4F4E] font-medium uppercase tracking-wider mt-0.5">per month</div>
         </div>
 
         {/* Divider */}
         <div className="hidden sm:block flex-shrink-0 w-px h-16 bg-[#E5DDD1]"></div>
 
-        {/* Service Details - Horizontal Grid */}
-        <div className="flex-1 w-full sm:w-auto grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
+        {/* Service Details - Horizontal Grid (Latency + Quality stacked in one column) */}
+        <div className="flex-1 w-full sm:w-auto grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Avatar</div>
             <div className="font-bold text-[#010101] text-sm">
               {combination.avatarPlan.name}
             </div>
-            {combination.avatarPlan.isAnnualOnly && (
-              <div className="text-xs text-[#010101] font-medium">
-                Annual
+            <div className="font-bold text-[#010101] text-sm">
+              {formatUSD(displayBreakdown.avatarCostUSD)}/mo
+            </div>
+            {costRange && (
+              <div className="text-xs text-[#4F4F4E] mt-1.5">
+                {formatUSD(costRange.avatarMinUSD)} – {formatUSD(costRange.avatarMaxUSD)}
               </div>
             )}
-            <div className="text-xs text-[#4F4F4E]">
-              {formatUSD(combination.breakdown.avatarCostUSD)}/mo
-            </div>
           </div>
           <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Voice</div>
             <div className="font-bold text-[#010101] text-sm">
               {combination.voiceAgent
-                ? `${combination.voiceAgent.name}${combination.voiceAgent.concurrency ? ` (${combination.voiceAgent.concurrency})` : ''}`
+                ? combination.voiceAgent.name
                 : 'Inbuilt'}
             </div>
-            <div className="text-xs text-[#4F4F4E]">
-              {combination.voiceAgent ? formatUSD(combination.breakdown.voiceCostUSD) + '/mo' : 'N/A'}
+            <div className="font-bold text-[#010101] text-sm">
+              {combination.voiceAgent ? formatUSD(displayBreakdown.voiceCostUSD) + '/mo' : 'N/A'}
             </div>
+            {costRange && combination.voiceAgent && (
+              <div className="text-xs text-[#4F4F4E] mt-1.5">
+                {formatUSD(costRange.voiceMinUSD)} – {formatUSD(costRange.voiceMaxUSD)}
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Hosting</div>
             <div className="font-bold text-[#010101] text-sm">
               {combination.hostingOption.name}
             </div>
-            <div className="text-xs text-[#4F4F4E]">
-              {formatUSD(convertINRToUSD(combination.breakdown.hostingCostINR))}/mo
+            <div className="font-bold text-[#010101] text-sm">
+              {formatUSD(convertINRToUSD(displayBreakdown.hostingCostINR))}/mo
             </div>
           </div>
           <div className="space-y-1">
@@ -780,20 +817,22 @@ function CombinationCard({
             <div className="font-bold text-[#010101] text-sm">
               {combination.storageOption.label}
             </div>
-            <div className="text-xs text-[#4F4F4E]">
-              {formatUSD(combination.breakdown.storageCostUSD)}/mo
+            <div className="font-bold text-[#010101] text-sm">
+              {formatUSD(displayBreakdown.storageCostUSD)}/mo
             </div>
           </div>
-          <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Quality</div>
-            <div className="font-bold text-[#010101] text-sm">
-              {calculateQuality(combination, users, concurrentSessions).overallQualityScore.toFixed(1)}/10
-        </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Latency</div>
-            <div className="font-bold text-[#010101] text-sm">
-              {calculateLatency(combination, users, concurrentSessions).p95Latency}ms
+          <div className="flex flex-col gap-3">
+            <div className="space-y-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Latency</div>
+              <div className="font-bold text-[#010101] text-sm">
+                {calculateLatency(combination, users, concurrentSessions).p95Latency}ms
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E]">Quality</div>
+              <div className="font-bold text-[#010101] text-sm">
+                {calculateQuality(combination, users, concurrentSessions).overallQualityScore.toFixed(1)}/10
+              </div>
             </div>
           </div>
         </div>
@@ -815,8 +854,8 @@ function CombinationCard({
               <div className="h-32 mb-3">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[
-                    { name: 'Base Plan', value: combination.breakdown.avatarBaseCostUSD },
-                    ...(combination.breakdown.avatarAdditionalCostUSD > 0 ? [{ name: 'Additional', value: combination.breakdown.avatarAdditionalCostUSD }] : [])
+                    { name: 'Base Plan', value: displayBreakdown.avatarBaseCostUSD },
+                    ...(displayBreakdown.avatarAdditionalCostUSD > 0 ? [{ name: 'Additional', value: displayBreakdown.avatarAdditionalCostUSD }] : [])
                   ]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5DDD1" opacity={0.3} />
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#666" />
@@ -850,15 +889,15 @@ function CombinationCard({
                     <div className="flex justify-between">
                       <span>Monthly Plan Cost:</span>
                   <div className="text-right">
-                    <div>{formatUSD(combination.breakdown.avatarBaseCostUSD)}</div>
-                    <div className="text-gray-500">{formatINR(convertUSDToINR(combination.breakdown.avatarBaseCostUSD))}</div>
+                    <div>{formatUSD(displayBreakdown.avatarBaseCostUSD)}</div>
+                    <div className="text-gray-500">{formatINR(convertUSDToINR(displayBreakdown.avatarBaseCostUSD))}</div>
                   </div>
                 </div>
                   </div>
                 </div>
 
                 {/* Additional Minutes Cost */}
-                {combination.breakdown.avatarAdditionalMinutes > 0 && (
+                {displayBreakdown.avatarAdditionalMinutes > 0 && (
                   <div className="space-y-2 pt-2 border-t border-gray-300 dark:border-gray-700">
                     <div className="font-semibold text-gray-900 dark:text-white">Additional Minutes Cost:</div>
                     <div className="pl-2 space-y-1">
@@ -868,23 +907,23 @@ function CombinationCard({
                     </div>
           <div className="flex justify-between">
                       <span>Additional Minutes:</span>
-                      <span>{combination.breakdown.avatarAdditionalMinutes.toLocaleString()}</span>
+                      <span>{displayBreakdown.avatarAdditionalMinutes.toLocaleString()}</span>
           </div>
             <div className="flex justify-between">
                         <span>Additional Cost:</span>
                       <div className="text-right">
-                        <div>{formatUSD(combination.breakdown.avatarAdditionalCostUSD)}</div>
-                        <div className="text-gray-500">{formatINR(convertUSDToINR(combination.breakdown.avatarAdditionalCostUSD))}</div>
+                        <div>{formatUSD(displayBreakdown.avatarAdditionalCostUSD)}</div>
+                        <div className="text-gray-500">{formatINR(convertUSDToINR(displayBreakdown.avatarAdditionalCostUSD))}</div>
                       </div>
                     </div>
                       <div className="text-[0.55rem] text-gray-500 italic pl-2">
-                        {combination.breakdown.avatarAdditionalMinutes.toLocaleString()} × {formatUSD(combination.avatarPlan.additionalPerMin)}/min
+                        {displayBreakdown.avatarAdditionalMinutes.toLocaleString()} × {formatUSD(combination.avatarPlan.additionalPerMin)}/min
                       </div>
                       <div className="flex justify-between pl-2 pt-1 border-t border-gray-200 dark:border-gray-700 mt-1">
                         <span className="font-medium">Additional Minutes Total:</span>
                         <div className="text-right">
-                          <span className="font-medium">{formatUSD(combination.breakdown.avatarAdditionalCostUSD)}</span>
-                          <div className="text-gray-500 text-[0.55rem]">{formatINR(convertUSDToINR(combination.breakdown.avatarAdditionalCostUSD))}</div>
+                          <span className="font-medium">{formatUSD(displayBreakdown.avatarAdditionalCostUSD)}</span>
+                          <div className="text-gray-500 text-[0.55rem]">{formatINR(convertUSDToINR(displayBreakdown.avatarAdditionalCostUSD))}</div>
                         </div>
                       </div>
                     </div>
@@ -896,24 +935,24 @@ function CombinationCard({
                   <div className="flex justify-between">
                     <span>Base Plan Cost:</span>
                     <div className="text-right">
-                      <span className="font-semibold">{formatUSD(combination.breakdown.avatarBaseCostUSD)}</span>
-                      <div className="text-gray-500 text-[0.55rem]">{formatINR(convertUSDToINR(combination.breakdown.avatarBaseCostUSD))}</div>
+                      <span className="font-semibold">{formatUSD(displayBreakdown.avatarBaseCostUSD)}</span>
+                      <div className="text-gray-500 text-[0.55rem]">{formatINR(convertUSDToINR(displayBreakdown.avatarBaseCostUSD))}</div>
                     </div>
                   </div>
-                  {combination.breakdown.avatarAdditionalCostUSD > 0 && (
+                  {displayBreakdown.avatarAdditionalCostUSD > 0 && (
                     <div className="flex justify-between">
                       <span>Additional Minutes Cost:</span>
                       <div className="text-right">
-                        <span className="font-semibold">{formatUSD(combination.breakdown.avatarAdditionalCostUSD)}</span>
-                        <div className="text-gray-500 text-[0.55rem]">{formatINR(convertUSDToINR(combination.breakdown.avatarAdditionalCostUSD))}</div>
+                        <span className="font-semibold">{formatUSD(displayBreakdown.avatarAdditionalCostUSD)}</span>
+                        <div className="text-gray-500 text-[0.55rem]">{formatINR(convertUSDToINR(displayBreakdown.avatarAdditionalCostUSD))}</div>
                       </div>
                     </div>
                   )}
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
                   <span>Total Avatar Cost:</span>
                   <div className="text-right">
-                      <div className="font-bold text-lg">{formatUSD(combination.breakdown.avatarCostUSD)}</div>
-                    <div className="text-gray-500">{formatINR(combination.breakdown.avatarCostINR)}</div>
+                      <div className="font-bold text-lg">{formatUSD(displayBreakdown.avatarCostUSD)}</div>
+                    <div className="text-gray-500">{formatINR(displayBreakdown.avatarCostINR)}</div>
                     </div>
                   </div>
                 </div>
@@ -921,7 +960,7 @@ function CombinationCard({
             </div>
 
             {/* Voice Cost Breakdown */}
-            {combination.breakdown.voiceCostINR > 0 && (
+            {displayBreakdown.voiceCostINR > 0 && (
               <div className="col-span-1 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-xl p-4 border border-blue-200 dark:border-blue-900 relative">
                 <div className="absolute -top-2 right-2 bg-blue-600 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
                   {combination.voiceAgent?.name || 'Inbuilt'}
@@ -932,9 +971,9 @@ function CombinationCard({
                 <div className="h-32 mb-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={[
-                      ...(combination.breakdown.voiceBaseCostUSD && combination.breakdown.voiceBaseCostUSD > 0 ? [{ name: 'Base', value: combination.breakdown.voiceBaseCostUSD }] : []),
-                      ...(combination.breakdown.voicePerMinuteCostUSD && combination.breakdown.voicePerMinuteCostUSD > 0 ? [{ name: 'Per Min', value: combination.breakdown.voicePerMinuteCostUSD }] : []),
-                      ...(combination.breakdown.voiceCostUSD > 0 && (!combination.breakdown.voiceBaseCostUSD || combination.breakdown.voiceBaseCostUSD === 0) && (!combination.breakdown.voicePerMinuteCostUSD || combination.breakdown.voicePerMinuteCostUSD === 0) ? [{ name: 'Total', value: combination.breakdown.voiceCostUSD }] : [])
+                      ...(displayBreakdown.voiceBaseCostUSD && displayBreakdown.voiceBaseCostUSD > 0 ? [{ name: 'Base', value: displayBreakdown.voiceBaseCostUSD }] : []),
+                      ...(displayBreakdown.voicePerMinuteCostUSD && displayBreakdown.voicePerMinuteCostUSD > 0 ? [{ name: 'Per Min', value: displayBreakdown.voicePerMinuteCostUSD }] : []),
+                      ...(displayBreakdown.voiceCostUSD > 0 && (!displayBreakdown.voiceBaseCostUSD || displayBreakdown.voiceBaseCostUSD === 0) && (!displayBreakdown.voicePerMinuteCostUSD || displayBreakdown.voicePerMinuteCostUSD === 0) ? [{ name: 'Total', value: displayBreakdown.voiceCostUSD }] : [])
                     ].filter(item => item.value > 0)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5DDD1" opacity={0.3} />
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#666" />
@@ -962,7 +1001,7 @@ function CombinationCard({
                   </div>
 
                   {/* Token-based Pricing */}
-                  {combination.voiceAgent?.pricingModel === 'tokens' && combination.breakdown.voiceTotalTokens && (
+                  {combination.voiceAgent?.pricingModel === 'tokens' && displayBreakdown.voiceTotalTokens && (
                     <div className="space-y-2">
                       <div className="font-semibold text-gray-900 dark:text-white">Token-based Cost:</div>
                       <div className="pl-2 space-y-1">
@@ -976,24 +1015,24 @@ function CombinationCard({
                       </div>
                       <div className="flex justify-between">
                         <span>Total Tokens:</span>
-                        <span>{combination.breakdown.voiceTotalTokens.toLocaleString()}</span>
+                        <span>{displayBreakdown.voiceTotalTokens.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Tokens (Millions):</span>
-                        <span>{(combination.breakdown.voiceTotalTokens / 1_000_000).toFixed(2)}M</span>
+                        <span>{(displayBreakdown.voiceTotalTokens / 1_000_000).toFixed(2)}M</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Price per 1M Tokens:</span>
                         <span>{formatUSD(combination.voiceAgent.pricePer1MTokens || 0)}</span>
                       </div>
                         <div className="text-[0.55rem] text-gray-500 italic pl-2">
-                          {(combination.breakdown.voiceTotalTokens / 1_000_000).toFixed(2)}M × {formatUSD(combination.voiceAgent.pricePer1MTokens || 0)}/1M
+                          {(displayBreakdown.voiceTotalTokens / 1_000_000).toFixed(2)}M × {formatUSD(combination.voiceAgent.pricePer1MTokens || 0)}/1M
                         </div>
                         <div className="flex justify-between pl-2 pt-1 border-t border-gray-200 dark:border-gray-700 mt-1">
                           <span className="font-medium">Token Cost Total:</span>
                           <div className="text-right">
-                            <div className="font-medium">{formatUSD(combination.breakdown.voiceCostUSD)}</div>
-                            <div className="text-gray-500 text-[0.55rem]">{formatINR(combination.breakdown.voiceCostINR)}</div>
+                            <div className="font-medium">{formatUSD(displayBreakdown.voiceCostUSD)}</div>
+                            <div className="text-gray-500 text-[0.55rem]">{formatINR(displayBreakdown.voiceCostINR)}</div>
                           </div>
                         </div>
                       </div>
@@ -1005,22 +1044,22 @@ function CombinationCard({
                     <div className="space-y-2">
                       <div className="font-semibold text-gray-900 dark:text-white">Per-minute Cost:</div>
                       <div className="pl-2 space-y-1">
-                      {combination.breakdown.voiceBaseCostUSD !== undefined && combination.breakdown.voiceBaseCostUSD > 0 && (
+                      {displayBreakdown.voiceBaseCostUSD !== undefined && displayBreakdown.voiceBaseCostUSD > 0 && (
                         <div className="flex justify-between">
                           <span>Minimum Monthly Cost:</span>
                           <div className="text-right">
-                            <div>{formatUSD(combination.breakdown.voiceBaseCostUSD)}</div>
-                            <div className="text-gray-500">{formatINR(convertUSDToINR(combination.breakdown.voiceBaseCostUSD))}</div>
+                            <div>{formatUSD(displayBreakdown.voiceBaseCostUSD)}</div>
+                            <div className="text-gray-500">{formatINR(convertUSDToINR(displayBreakdown.voiceBaseCostUSD))}</div>
                           </div>
                         </div>
                       )}
-                      {combination.breakdown.voicePerMinuteCostUSD !== undefined && (
+                      {displayBreakdown.voicePerMinuteCostUSD !== undefined && (
                           <>
                         <div className="flex justify-between">
                               <span>Per-Minute Cost:</span>
                           <div className="text-right">
-                            <div>{formatUSD(combination.breakdown.voicePerMinuteCostUSD)}</div>
-                            <div className="text-gray-500">{formatINR(convertUSDToINR(combination.breakdown.voicePerMinuteCostUSD))}</div>
+                            <div>{formatUSD(displayBreakdown.voicePerMinuteCostUSD)}</div>
+                            <div className="text-gray-500">{formatINR(convertUSDToINR(displayBreakdown.voicePerMinuteCostUSD))}</div>
                           </div>
                         </div>
                             <div className="text-[0.55rem] text-gray-500 italic pl-2">
@@ -1028,7 +1067,7 @@ function CombinationCard({
                             </div>
                           </>
                       )}
-                      {combination.breakdown.voiceBaseCostUSD !== undefined && combination.breakdown.voiceBaseCostUSD > 0 && (
+                      {displayBreakdown.voiceBaseCostUSD !== undefined && displayBreakdown.voiceBaseCostUSD > 0 && (
                           <div className="text-[0.55rem] text-gray-500 italic pl-2">
                         * Cost is the higher of minimum or per-minute cost
                       </div>
@@ -1046,13 +1085,13 @@ function CombinationCard({
                         <span>Price per Minute per Concurrency:</span>
                         <span>{formatUSD(combination.voiceAgent?.pricePerMinute || 0)}</span>
                       </div>
-                      {combination.breakdown.voicePerMinuteCostUSD !== undefined && (
+                      {displayBreakdown.voicePerMinuteCostUSD !== undefined && (
                           <>
                         <div className="flex justify-between">
                               <span>Total Cost:</span>
                           <div className="text-right">
-                            <div>{formatUSD(combination.breakdown.voicePerMinuteCostUSD)}</div>
-                            <div className="text-gray-500">{formatINR(convertUSDToINR(combination.breakdown.voicePerMinuteCostUSD))}</div>
+                            <div>{formatUSD(displayBreakdown.voicePerMinuteCostUSD)}</div>
+                            <div className="text-gray-500">{formatINR(convertUSDToINR(displayBreakdown.voicePerMinuteCostUSD))}</div>
                           </div>
                         </div>
                             <div className="text-[0.55rem] text-gray-500 italic pl-2">
@@ -1069,8 +1108,8 @@ function CombinationCard({
                     <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
                     <span>Total Voice Cost:</span>
                     <div className="text-right">
-                        <div className="font-bold text-lg">{formatUSD(combination.breakdown.voiceCostUSD)}</div>
-                      <div className="text-gray-500">{formatINR(combination.breakdown.voiceCostINR)}</div>
+                        <div className="font-bold text-lg">{formatUSD(displayBreakdown.voiceCostUSD)}</div>
+                      <div className="text-gray-500">{formatINR(displayBreakdown.voiceCostINR)}</div>
                       </div>
                     </div>
                   </div>
@@ -1089,9 +1128,9 @@ function CombinationCard({
               <div className="h-32 mb-3">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[
-                    { name: 'Base', value: convertINRToUSD(combination.breakdown.hostingBaseCostINR) },
-                    { name: 'Users', value: convertINRToUSD(combination.breakdown.hostingUsersCostINR) },
-                    { name: 'Calls', value: convertINRToUSD(combination.breakdown.hostingCallsCostINR) }
+                    { name: 'Base', value: convertINRToUSD(displayBreakdown.hostingBaseCostINR) },
+                    { name: 'Users', value: convertINRToUSD(displayBreakdown.hostingUsersCostINR) },
+                    { name: 'Calls', value: convertINRToUSD(displayBreakdown.hostingCallsCostINR) }
                   ]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5DDD1" opacity={0.3} />
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#666" />
@@ -1121,8 +1160,8 @@ function CombinationCard({
                 <div className="flex justify-between">
                       <span>Base Cost:</span>
                       <div className="text-right">
-                        <div>{formatUSD(convertINRToUSD(combination.breakdown.hostingBaseCostINR))}</div>
-                        <div className="text-gray-500">{formatINR(combination.breakdown.hostingBaseCostINR)}</div>
+                        <div>{formatUSD(convertINRToUSD(displayBreakdown.hostingBaseCostINR))}</div>
+                        <div className="text-gray-500">{formatINR(displayBreakdown.hostingBaseCostINR)}</div>
                       </div>
                 </div>
                   </div>
@@ -1139,8 +1178,8 @@ function CombinationCard({
                     <div className="flex justify-between">
                       <span>Users Cost:</span>
                       <div className="text-right">
-                        <div>{formatUSD(convertINRToUSD(combination.breakdown.hostingUsersCostINR))}</div>
-                        <div className="text-gray-500">{formatINR(combination.breakdown.hostingUsersCostINR)}</div>
+                        <div>{formatUSD(convertINRToUSD(displayBreakdown.hostingUsersCostINR))}</div>
+                        <div className="text-gray-500">{formatINR(displayBreakdown.hostingUsersCostINR)}</div>
                       </div>
                 </div>
                     <div className="text-[0.55rem] text-gray-500 italic pl-2">
@@ -1149,8 +1188,8 @@ function CombinationCard({
                     <div className="flex justify-between pl-2 pt-1 border-t border-gray-200 dark:border-gray-700 mt-1">
                       <span className="font-medium">Users Cost Total:</span>
                       <div className="text-right">
-                        <div className="font-medium">{formatUSD(convertINRToUSD(combination.breakdown.hostingUsersCostINR))}</div>
-                        <div className="text-gray-500 text-[0.55rem]">{formatINR(combination.breakdown.hostingUsersCostINR)}</div>
+                        <div className="font-medium">{formatUSD(convertINRToUSD(displayBreakdown.hostingUsersCostINR))}</div>
+                        <div className="text-gray-500 text-[0.55rem]">{formatINR(displayBreakdown.hostingUsersCostINR)}</div>
                       </div>
                     </div>
                   </div>
@@ -1171,8 +1210,8 @@ function CombinationCard({
                     <div className="flex justify-between">
                       <span>Calls Cost:</span>
                       <div className="text-right">
-                        <div>{formatUSD(convertINRToUSD(combination.breakdown.hostingCallsCostINR))}</div>
-                        <div className="text-gray-500">{formatINR(combination.breakdown.hostingCallsCostINR)}</div>
+                        <div>{formatUSD(convertINRToUSD(displayBreakdown.hostingCallsCostINR))}</div>
+                        <div className="text-gray-500">{formatINR(displayBreakdown.hostingCallsCostINR)}</div>
                       </div>
                 </div>
                     <div className="text-[0.55rem] text-gray-500 italic pl-2">
@@ -1181,8 +1220,8 @@ function CombinationCard({
                     <div className="flex justify-between pl-2 pt-1 border-t border-gray-200 dark:border-gray-700 mt-1">
                       <span className="font-medium">Calls Cost Total:</span>
                       <div className="text-right">
-                        <div className="font-medium">{formatUSD(convertINRToUSD(combination.breakdown.hostingCallsCostINR))}</div>
-                        <div className="text-gray-500 text-[0.55rem]">{formatINR(combination.breakdown.hostingCallsCostINR)}</div>
+                        <div className="font-medium">{formatUSD(convertINRToUSD(displayBreakdown.hostingCallsCostINR))}</div>
+                        <div className="text-gray-500 text-[0.55rem]">{formatINR(displayBreakdown.hostingCallsCostINR)}</div>
                       </div>
                     </div>
                   </div>
@@ -1193,29 +1232,29 @@ function CombinationCard({
                 <div className="flex justify-between">
                   <span>Base Monthly Cost:</span>
                     <div className="text-right">
-                      <div className="font-semibold">{formatUSD(convertINRToUSD(combination.breakdown.hostingBaseCostINR))}</div>
-                      <div className="text-gray-500 text-[0.55rem]">{formatINR(combination.breakdown.hostingBaseCostINR)}</div>
+                      <div className="font-semibold">{formatUSD(convertINRToUSD(displayBreakdown.hostingBaseCostINR))}</div>
+                      <div className="text-gray-500 text-[0.55rem]">{formatINR(displayBreakdown.hostingBaseCostINR)}</div>
                     </div>
                 </div>
                 <div className="flex justify-between">
                     <span>Users Cost:</span>
                     <div className="text-right">
-                      <div className="font-semibold">{formatUSD(convertINRToUSD(combination.breakdown.hostingUsersCostINR))}</div>
-                      <div className="text-gray-500 text-[0.55rem]">{formatINR(combination.breakdown.hostingUsersCostINR)}</div>
+                      <div className="font-semibold">{formatUSD(convertINRToUSD(displayBreakdown.hostingUsersCostINR))}</div>
+                      <div className="text-gray-500 text-[0.55rem]">{formatINR(displayBreakdown.hostingUsersCostINR)}</div>
                     </div>
                 </div>
           <div className="flex justify-between">
                     <span>Calls Cost:</span>
                     <div className="text-right">
-                      <div className="font-semibold">{formatUSD(convertINRToUSD(combination.breakdown.hostingCallsCostINR))}</div>
-                      <div className="text-gray-500 text-[0.55rem]">{formatINR(combination.breakdown.hostingCallsCostINR)}</div>
+                      <div className="font-semibold">{formatUSD(convertINRToUSD(displayBreakdown.hostingCallsCostINR))}</div>
+                      <div className="text-gray-500 text-[0.55rem]">{formatINR(displayBreakdown.hostingCallsCostINR)}</div>
                 </div>
                   </div>
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
                   <span>Total Hosting Cost:</span>
                     <div className="text-right">
-                      <div className="font-bold text-lg">{formatUSD(convertINRToUSD(combination.breakdown.hostingCostINR))}</div>
-                      <div className="text-gray-500">{formatINR(combination.breakdown.hostingCostINR)}</div>
+                      <div className="font-bold text-lg">{formatUSD(convertINRToUSD(displayBreakdown.hostingCostINR))}</div>
+                      <div className="text-gray-500">{formatINR(displayBreakdown.hostingCostINR)}</div>
                     </div>
                   </div>
           </div>
@@ -1223,7 +1262,7 @@ function CombinationCard({
             </div>
 
             {/* Misc Expenses */}
-            <div className={`col-span-1 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-xl p-4 border border-yellow-200 dark:border-yellow-900 relative ${combination.breakdown.voiceCostINR > 0 ? '' : ''}`}>
+            <div className={`col-span-1 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-xl p-4 border border-yellow-200 dark:border-yellow-900 relative ${displayBreakdown.voiceCostINR > 0 ? '' : ''}`}>
               <div className="absolute -top-2 right-2 bg-yellow-600 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
                 Blacksteeed
               </div>
@@ -1268,8 +1307,8 @@ function CombinationCard({
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
                     <span>Architectural Cost:</span>
                     <div className="text-right">
-                      <div className="font-bold text-lg">{formatUSD(convertINRToUSD(combination.breakdown.miscExpensesINR))}</div>
-                      <div className="text-gray-500">{formatINR(combination.breakdown.miscExpensesINR)}</div>
+                      <div className="font-bold text-lg">{formatUSD(convertINRToUSD(displayBreakdown.miscExpensesINR))}</div>
+                      <div className="text-gray-500">{formatINR(displayBreakdown.miscExpensesINR)}</div>
                     </div>
                   </div>
                 </div>
@@ -1278,13 +1317,15 @@ function CombinationCard({
 
             {/* Row 2: Miscellaneous (if Voice exists), Storage */}
             {/* Storage Cost Breakdown - Comprehensive */}
-            <div className={combination.breakdown.voiceCostINR > 0 ? 'col-span-2' : 'col-span-3'}>
+            <div className={displayBreakdown.voiceCostINR > 0 ? 'col-span-2' : 'col-span-3'}>
               <StorageCostBreakdown 
                 combination={combination} 
                 storageInput={storageInput}
                 formatUSD={formatUSD}
                 formatINR={formatINR}
                 convertUSDToINR={convertUSDToINR}
+                storageCostUSD={displayBreakdown.storageCostUSD}
+                storageCostINR={displayBreakdown.storageCostINR}
               />
             </div>
 
@@ -1309,11 +1350,11 @@ function CombinationCard({
                           <Pie
                             data={(() => {
                               const data = [
-                                { name: 'Avatar', value: combination.breakdown.avatarCostUSD, color: '#010101' },
-                                { name: 'Voice', value: combination.breakdown.voiceCostUSD, color: '#3B82F6' },
-                                { name: 'Hosting', value: convertINRToUSD(combination.breakdown.hostingCostINR), color: '#A855F7' },
-                                { name: 'Storage', value: combination.breakdown.storageCostUSD, color: '#EC4899' },
-                                { name: 'Architectural', value: convertINRToUSD(combination.breakdown.miscExpensesINR), color: '#F59E0B' }
+                                { name: 'Avatar', value: displayBreakdown.avatarCostUSD, color: '#010101' },
+                                { name: 'Voice', value: displayBreakdown.voiceCostUSD, color: '#3B82F6' },
+                                { name: 'Hosting', value: convertINRToUSD(displayBreakdown.hostingCostINR), color: '#A855F7' },
+                                { name: 'Storage', value: displayBreakdown.storageCostUSD, color: '#EC4899' },
+                                { name: 'Architectural', value: convertINRToUSD(displayBreakdown.miscExpensesINR), color: '#F59E0B' }
                               ].filter(item => item.value > 0);
                               const maxValue = Math.max(...data.map(d => d.value));
                               return data.map(item => ({
@@ -1329,11 +1370,11 @@ function CombinationCard({
                             dataKey="value"
                             label={(entry: any) => {
                               const allData = [
-                                { name: 'Avatar', value: combination.breakdown.avatarCostUSD },
-                                { name: 'Voice', value: combination.breakdown.voiceCostUSD },
-                                { name: 'Hosting', value: convertINRToUSD(combination.breakdown.hostingCostINR) },
-                                { name: 'Storage', value: combination.breakdown.storageCostUSD },
-                                { name: 'Architectural', value: convertINRToUSD(combination.breakdown.miscExpensesINR) }
+                                { name: 'Avatar', value: displayBreakdown.avatarCostUSD },
+                                { name: 'Voice', value: displayBreakdown.voiceCostUSD },
+                                { name: 'Hosting', value: convertINRToUSD(displayBreakdown.hostingCostINR) },
+                                { name: 'Storage', value: displayBreakdown.storageCostUSD },
+                                { name: 'Architectural', value: convertINRToUSD(displayBreakdown.miscExpensesINR) }
                               ].filter(item => item.value > 0);
                               
                               // Find the primary (max value) entry
@@ -1454,11 +1495,11 @@ function CombinationCard({
                             }}
                           >
                             {[
-                              { name: 'Avatar', value: combination.breakdown.avatarCostUSD, color: '#010101' },
-                              { name: 'Voice', value: combination.breakdown.voiceCostUSD, color: '#3B82F6' },
-                              { name: 'Hosting', value: convertINRToUSD(combination.breakdown.hostingCostINR), color: '#A855F7' },
-                              { name: 'Storage', value: combination.breakdown.storageCostUSD, color: '#EC4899' },
-                              { name: 'Architectural', value: convertINRToUSD(combination.breakdown.miscExpensesINR), color: '#F59E0B' }
+                              { name: 'Avatar', value: displayBreakdown.avatarCostUSD, color: '#010101' },
+                              { name: 'Voice', value: displayBreakdown.voiceCostUSD, color: '#3B82F6' },
+                              { name: 'Hosting', value: convertINRToUSD(displayBreakdown.hostingCostINR), color: '#A855F7' },
+                              { name: 'Storage', value: displayBreakdown.storageCostUSD, color: '#EC4899' },
+                              { name: 'Architectural', value: convertINRToUSD(displayBreakdown.miscExpensesINR), color: '#F59E0B' }
                             ].filter(item => item.value > 0).map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
@@ -1473,11 +1514,11 @@ function CombinationCard({
                     <div className="flex-shrink-0">
                       <div className="space-y-2.5 text-[0.7rem] text-white">
                         {[
-                          { name: 'Avatar', value: combination.breakdown.avatarCostUSD, color: '#010101' },
-                          { name: 'Voice', value: combination.breakdown.voiceCostUSD, color: '#3B82F6' },
-                          { name: 'Hosting', value: convertINRToUSD(combination.breakdown.hostingCostINR), color: '#A855F7' },
-                          { name: 'Storage', value: combination.breakdown.storageCostUSD, color: '#EC4899' },
-                          { name: 'Architectural', value: convertINRToUSD(combination.breakdown.miscExpensesINR), color: '#F59E0B' }
+                          { name: 'Avatar', value: displayBreakdown.avatarCostUSD, color: '#010101' },
+                          { name: 'Voice', value: displayBreakdown.voiceCostUSD, color: '#3B82F6' },
+                          { name: 'Hosting', value: convertINRToUSD(displayBreakdown.hostingCostINR), color: '#A855F7' },
+                          { name: 'Storage', value: displayBreakdown.storageCostUSD, color: '#EC4899' },
+                          { name: 'Architectural', value: convertINRToUSD(displayBreakdown.miscExpensesINR), color: '#F59E0B' }
                         ].filter(item => item.value > 0)
                         .sort((a, b) => b.value - a.value)
                         .map((entry, index) => (
@@ -1507,11 +1548,11 @@ function CombinationCard({
                   <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4 border border-white/20">
                     <div className="flex justify-between items-center mb-3 pb-3 border-b border-white/20">
                       <span className="text-base font-semibold text-purple-100">USD:</span>
-                      <span className="text-2xl font-extrabold text-white">{formatUSD(combination.breakdown.totalCostUSD)}</span>
+                      <span className="text-2xl font-extrabold text-white">{formatUSD(displayBreakdown.totalCostUSD)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-base font-semibold text-purple-100">INR:</span>
-                      <span className="text-2xl font-extrabold text-white">{formatINR(combination.breakdown.totalCostINR)}</span>
+                      <span className="text-2xl font-extrabold text-white">{formatINR(displayBreakdown.totalCostINR)}</span>
                     </div>
                   </div>
                   
@@ -1520,25 +1561,25 @@ function CombinationCard({
                     <div className="space-y-2 text-[0.7rem]">
                       <div className="flex justify-between items-center py-1 border-b border-white/10">
                         <span className="text-purple-100">Avatar:</span>
-                        <span className="font-semibold text-white">{formatUSD(combination.breakdown.avatarCostUSD)}</span>
+                        <span className="font-semibold text-white">{formatUSD(displayBreakdown.avatarCostUSD)}</span>
                       </div>
-                      {combination.breakdown.voiceCostUSD > 0 && (
+                      {displayBreakdown.voiceCostUSD > 0 && (
                         <div className="flex justify-between items-center py-1 border-b border-white/10">
                           <span className="text-purple-100">Voice:</span>
-                          <span className="font-semibold text-white">{formatUSD(combination.breakdown.voiceCostUSD)}</span>
+                          <span className="font-semibold text-white">{formatUSD(displayBreakdown.voiceCostUSD)}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-center py-1 border-b border-white/10">
                         <span className="text-purple-100">Hosting:</span>
-                        <span className="font-semibold text-white">{formatUSD(convertINRToUSD(combination.breakdown.hostingCostINR))}</span>
+                        <span className="font-semibold text-white">{formatUSD(convertINRToUSD(displayBreakdown.hostingCostINR))}</span>
                       </div>
                       <div className="flex justify-between items-center py-1 border-b border-white/10">
                         <span className="text-purple-100">Storage:</span>
-                        <span className="font-semibold text-white">{formatUSD(combination.breakdown.storageCostUSD)}</span>
+                        <span className="font-semibold text-white">{formatUSD(displayBreakdown.storageCostUSD)}</span>
                       </div>
                       <div className="flex justify-between items-center py-1">
                         <span className="text-purple-100">Architectural:</span>
-                        <span className="font-semibold text-white">{formatUSD(convertINRToUSD(combination.breakdown.miscExpensesINR))}</span>
+                        <span className="font-semibold text-white">{formatUSD(convertINRToUSD(displayBreakdown.miscExpensesINR))}</span>
                       </div>
                     </div>
                   </div>
@@ -1624,14 +1665,20 @@ function StorageCostBreakdown({
   storageInput, 
   formatUSD, 
   formatINR, 
-  convertUSDToINR 
+  convertUSDToINR,
+  storageCostUSD,
+  storageCostINR,
 }: { 
   combination: Combination; 
   storageInput: any; 
   formatUSD: (amount: number) => string;
   formatINR: (amount: number) => string;
   convertUSDToINR: (amount: number) => number;
+  storageCostUSD?: number;
+  storageCostINR?: number;
 }) {
+  const totalStorageUSD = storageCostUSD ?? combination.breakdown.storageCostUSD;
+  const totalStorageINR = storageCostINR ?? combination.breakdown.storageCostINR;
   if (!storageInput) {
     return (
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 rounded-xl p-4 border border-purple-200 dark:border-purple-900">
@@ -1651,8 +1698,8 @@ function StorageCostBreakdown({
                 <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700 font-semibold">
                   <span>Total Storage Cost:</span>
                   <div className="text-right">
-                    <div>{formatUSD(combination.breakdown.storageCostUSD)}</div>
-                    <div className="text-gray-500">{formatINR(combination.breakdown.storageCostINR)}</div>
+                    <div>{formatUSD(totalStorageUSD)}</div>
+                    <div className="text-gray-500">{formatINR(totalStorageINR)}</div>
                   </div>
                 </div>
               </div>

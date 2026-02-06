@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Combination } from '@/lib/calculator';
+import { Combination, getCostBreakdownForInput } from '@/lib/calculator';
+import type { BudgetInput } from '@/lib/calculator';
 import ResultsDisplay from '@/components/ResultsDisplay';
 import { ArrowLeft } from 'lucide-react';
 import { calculateLatency, calculateQuality } from '@/lib/qualityLatency';
-import { convertINRToUSD } from '@/lib/pricing';
+import { convertINRToUSD, convertUSDToINR } from '@/lib/pricing';
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function ResultsPage() {
           
           // Avatar provider bonuses
           const avatarProvider = combo.avatarPlan.provider.toLowerCase();
-          if (avatarProvider === 'tevus') {
+          if (avatarProvider === 'tavus') {
             score += 100;
           } else if (avatarProvider === 'anam') {
             score += 90;
@@ -45,12 +46,8 @@ export default function ResultsPage() {
             const voiceId = combo.voiceAgent.id.toLowerCase();
             if (voiceId.includes('hume')) {
               score += 100;
-            } else if (voiceId.includes('gemini')) {
+            } else if (voiceId.includes('elevenlabs')) {
               score += 70;
-            } else if (voiceId.includes('gpt')) {
-              score += 10;
-            } else if (voiceId.includes('grok')) {
-              score += 5;
             }
           }
           
@@ -111,48 +108,73 @@ export default function ResultsPage() {
   }, []);
 
   const users = input?.users || 100;
-  const concurrentSessions = input?.concurrentSessions || 10;
 
-  // Calculate metrics
-  const metrics = useMemo(() => {
+  // Slider state (minutes per user, concurrency) — drives dynamic calculations; initialized to average when input loads
+  const [sliderMinutesPerUser, setSliderMinutesPerUser] = useState(30);
+  const [sliderConcurrency, setSliderConcurrency] = useState(5);
+  const initialSliderSet = useRef(false);
+  useEffect(() => {
+    if (input && !initialSliderSet.current) {
+      initialSliderSet.current = true;
+      const minM = input.minMinutesPerUser ?? 10;
+      const maxM = input.maxMinutesPerUser ?? 50;
+      const c5 = input.concurrentSessions5Percent ?? 0;
+      const c10 = input.concurrentSessions10Percent ?? 10;
+      setSliderMinutesPerUser(Math.round((minM + maxM) / 2));
+      setSliderConcurrency(Math.round((c5 + c10) / 2));
+    }
+  }, [input]);
+
+  // Slider input: BudgetInput built from calculation input + current slider values (for dynamic cost/latency)
+  const sliderInput = useMemo((): BudgetInput | null => {
+    if (!input || !results.length) return null;
+    const u = input.users ?? 100;
+    const minutesPerMonth = Math.round(u * 0.5 * 24 * sliderMinutesPerUser);
+    return {
+      ...input,
+      users: u,
+      minutesPerMonth,
+      concurrentSessions: sliderConcurrency,
+      storageNumberOfDatabases: input.storageNumberOfDatabases ?? 1,
+      storageTotalSizeGB: input.storageTotalSizeGB ?? 1000,
+      storageTierAllocation: input.storageTierAllocation ?? { hot: 600, cold: 300, archive: 100 },
+    } as BudgetInput;
+  }, [input, sliderMinutesPerUser, sliderConcurrency, results.length]);
+
+  // Fixed metrics (range) — from original results at average; do NOT change with slider
+  const fixedMetrics = useMemo(() => {
     if (results.length === 0) {
-      return {
-        totalMin: 0,
-        totalMax: 0,
-        averageCost: 0,
-        averageLatency: 0,
-        qualityMin: 0,
-        qualityMax: 0,
-      };
+      return { totalMin: 0, totalMax: 0, qualityMin: 0, qualityMax: 0 };
     }
     const totalCosts = results.map(r => r.breakdown.totalCostINR);
-    const totalMin = totalCosts.length > 0 ? Math.min(...totalCosts) : 0;
-    const totalMax = totalCosts.length > 0 ? Math.max(...totalCosts) : 0;
-    const averageCost = totalCosts.length > 0 ? totalCosts.reduce((a, b) => a + b, 0) / totalCosts.length : 0;
-    
-    // Calculate average latency and quality range
-    const latencies = results.map(r => {
-      const latency = calculateLatency(r, users, concurrentSessions);
-      return latency.p95Latency;
-    });
-    const averageLatency = latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0;
-    
+    const totalMin = Math.min(...totalCosts);
+    const totalMax = Math.max(...totalCosts);
     const qualities = results.map(r => {
-      const quality = calculateQuality(r, users, concurrentSessions);
+      const quality = calculateQuality(r, users, input?.concurrentSessions ?? 10);
       return quality.overallQualityScore;
     });
-    const qualityMin = qualities.length > 0 ? Math.min(...qualities) : 0;
-    const qualityMax = qualities.length > 0 ? Math.max(...qualities) : 0;
-    
     return {
       totalMin,
       totalMax,
-      averageCost,
-      averageLatency,
-      qualityMin,
-      qualityMax,
+      qualityMin: Math.min(...qualities),
+      qualityMax: Math.max(...qualities),
     };
-  }, [results, users, concurrentSessions]);
+  }, [results, users, input?.concurrentSessions]);
+
+  // Dynamic metrics (average cost, average latency) — recompute when slider changes
+  const dynamicMetrics = useMemo(() => {
+    if (results.length === 0 || !sliderInput) {
+      return { averageCost: 0, averageLatency: 0 };
+    }
+    const costsINR = results.map(r => {
+      const b = getCostBreakdownForInput(r, sliderInput);
+      return convertUSDToINR(b.totalCostUSD);
+    });
+    const averageCost = costsINR.reduce((a, b) => a + b, 0) / costsINR.length;
+    const latencies = results.map(r => calculateLatency(r, users, sliderConcurrency).p95Latency);
+    const averageLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+    return { averageCost, averageLatency };
+  }, [results, sliderInput, users, sliderConcurrency]);
 
   const handleBack = () => {
     router.push('/');
@@ -233,63 +255,222 @@ export default function ResultsPage() {
                 </div>
               </div>
 
-              {/* Average Cost */}
+              {/* Average Cost (dynamic: updates with slider) */}
               <div className="flex-1 px-6">
                 <h3 className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2" style={{ fontFamily: 'Avenir' }}>
                   AVERAGE COST
                 </h3>
                 <div className="text-lg font-bold text-[#010101]">
-                  {formatUSD(convertINRToUSD(metrics.averageCost))}
+                  {formatUSD(convertINRToUSD(dynamicMetrics.averageCost))}
                 </div>
                 <div className="text-sm text-[#010101]/60">
-                  {formatINR(metrics.averageCost)}
+                  {formatINR(dynamicMetrics.averageCost)}
                 </div>
               </div>
 
-              {/* Average Latency */}
+              {/* Average Latency (dynamic: updates with slider) */}
               <div className="flex-1 px-6">
                 <h3 className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2" style={{ fontFamily: 'Avenir' }}>
                   AVERAGE LATENCY
                 </h3>
                 <div className="text-lg font-bold text-[#010101]">
-                  {Math.round(metrics.averageLatency)}ms
+                  {Math.round(dynamicMetrics.averageLatency)}ms
                 </div>
               </div>
 
-              {/* Quality Range */}
+              {/* Quality Range (fixed: does not change with slider) */}
               <div className="flex-1 px-6">
                 <h3 className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2" style={{ fontFamily: 'Avenir' }}>
                   QUALITY RANGE
                 </h3>
                 <div className="text-lg font-bold text-[#010101]">
-                  {metrics.qualityMin.toFixed(1)} - {metrics.qualityMax.toFixed(1)}
+                  {fixedMetrics.qualityMin.toFixed(1)} - {fixedMetrics.qualityMax.toFixed(1)}
                 </div>
               </div>
 
-              {/* Total Cost Range */}
+              {/* Total Cost Range (fixed: does not change with slider) */}
               <div className="flex-1 px-6 last:pr-0">
                 <h3 className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2" style={{ fontFamily: 'Avenir' }}>
                   TOTAL COST RANGE
                 </h3>
                 <div className="text-lg font-bold text-[#010101]">
-                  {formatUSD(convertINRToUSD(metrics.totalMin))} - {formatUSD(convertINRToUSD(metrics.totalMax))}
+                  {formatUSD(convertINRToUSD(fixedMetrics.totalMin))} - {formatUSD(convertINRToUSD(fixedMetrics.totalMax))}
                 </div>
                 <div className="text-sm text-[#010101]/60">
-                  {formatINR(metrics.totalMin)} - {formatINR(metrics.totalMax)}
+                  {formatINR(fixedMetrics.totalMin)} - {formatINR(fixedMetrics.totalMax)}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Sort Options */}
-          <SortOptions results={results} setResults={setResults} users={users} concurrentSessions={concurrentSessions} />
+          {/* Sliders Card - Minutes per user & Concurrency (drives dynamic cost/latency) */}
+          <SlidersCard
+            input={input}
+            minutesPerUser={sliderMinutesPerUser}
+            concurrency={sliderConcurrency}
+            onMinutesPerUserChange={setSliderMinutesPerUser}
+            onConcurrencyChange={setSliderConcurrency}
+          />
 
-          {/* Results Display */}
+          {/* Sort Options */}
+          <SortOptions results={results} setResults={setResults} users={users} concurrentSessions={sliderConcurrency} />
+
+          {/* Results Display (amounts and charts use slider input when set) */}
           <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-sm border border-white/50">
-            <ResultsDisplay results={results} isCalculating={false} users={users} concurrentSessions={concurrentSessions} />
+            <ResultsDisplay
+              results={results}
+              isCalculating={false}
+              users={users}
+              concurrentSessions={sliderConcurrency}
+              calculationInput={input}
+              sliderInput={sliderInput}
+            />
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+// Sliders Card - Minutes per user & Concurrency (above Sort); controlled by parent for dynamic results
+function SlidersCard({
+  input,
+  minutesPerUser,
+  concurrency,
+  onMinutesPerUserChange,
+  onConcurrencyChange,
+}: {
+  input: any;
+  minutesPerUser: number;
+  concurrency: number;
+  onMinutesPerUserChange: (v: number) => void;
+  onConcurrencyChange: (v: number) => void;
+}) {
+  const minMinutesPerUser = input?.minMinutesPerUser ?? 10;
+  const maxMinutesPerUser = input?.maxMinutesPerUser ?? 50;
+  const concurrency5 = input?.concurrentSessions5Percent ?? 0;
+  const concurrency10 = input?.concurrentSessions10Percent ?? 10;
+
+  const avgMinutesPerUser = Math.round((minMinutesPerUser + maxMinutesPerUser) / 2);
+  const avgConcurrency = Math.round((concurrency5 + concurrency10) / 2);
+
+  const minutesRange = Math.max(maxMinutesPerUser - minMinutesPerUser, 1);
+  const concurrencyRange = Math.max(concurrency10 - concurrency5, 1);
+  const minutesPercent = ((minutesPerUser - minMinutesPerUser) / minutesRange) * 100;
+  const concurrencyPercent = ((concurrency - concurrency5) / concurrencyRange) * 100;
+  const avgMinutesPercent = ((avgMinutesPerUser - minMinutesPerUser) / minutesRange) * 100;
+  const avgConcurrencyPercent = ((avgConcurrency - concurrency5) / concurrencyRange) * 100;
+
+  // Fill from average: segment between thumb and avg (so fill starts at avg, not at left)
+  const minutesFillStart = minutesPerUser >= avgMinutesPerUser ? avgMinutesPercent : minutesPercent;
+  const minutesFillWidth = Math.abs(minutesPercent - avgMinutesPercent);
+  const concurrencyFillStart = concurrency >= avgConcurrency ? avgConcurrencyPercent : concurrencyPercent;
+  const concurrencyFillWidth = Math.abs(concurrencyPercent - avgConcurrencyPercent);
+
+  return (
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 mb-6 shadow-sm border border-white/50">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6">
+        {/* Column 1: Minutes per user */}
+        <div className="mb-2">
+          <h3 className="text-base font-bold text-[#010101] mb-4" style={{ fontFamily: 'Avenir' }}>
+            Minutes per user
+          </h3>
+          <div className="relative">
+            {/* MIN / AVG / MAX above slider */}
+            <div className="relative flex justify-between mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#4F4F4E]">
+              <span>MIN</span>
+              <span className="absolute" style={{ left: `${avgMinutesPercent}%`, transform: 'translateX(-50%)' }}>AVG</span>
+              <span>MAX</span>
+            </div>
+            <div
+              className="tier-slider-container slider-fill-from-avg relative"
+              style={
+                {
+                  '--slider-fill-start': `${minutesFillStart}%`,
+                  '--slider-fill-width': `${minutesFillWidth}%`,
+                } as React.CSSProperties
+              }
+            >
+              <div
+                className="absolute w-px bg-[#010101]/50 z-[2] pointer-events-none"
+                style={{
+                  left: `${avgMinutesPercent}%`,
+                  transform: 'translateX(-50%)',
+                  top: '-6px',
+                  height: '18px',
+                }}
+                aria-hidden
+              />
+              <input
+                type="range"
+                min={minMinutesPerUser}
+                max={maxMinutesPerUser}
+                value={minutesPerUser}
+                onChange={(e) => onMinutesPerUserChange(Number(e.target.value))}
+                className="tier-slider w-full appearance-none cursor-pointer relative z-10"
+                style={{ background: 'transparent', height: '6px' }}
+              />
+            </div>
+            <div className="relative flex justify-between mt-1 text-xs text-[#4F4F4E]">
+              <span>{minMinutesPerUser}</span>
+              <span className="absolute text-base font-bold text-[#010101]" style={{ left: `${minutesPercent}%`, transform: 'translateX(-50%)' }}>
+                {minutesPerUser}
+              </span>
+              <span>{maxMinutesPerUser}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Column 2: Concurrency */}
+        <div className="mb-2">
+          <h3 className="text-base font-bold text-[#010101] mb-4" style={{ fontFamily: 'Avenir' }}>
+            Concurrency
+          </h3>
+          <div className="relative">
+            <div className="relative flex justify-between mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#4F4F4E]">
+              <span>5%</span>
+              <span className="absolute" style={{ left: `${avgConcurrencyPercent}%`, transform: 'translateX(-50%)' }}>AVG</span>
+              <span>10%</span>
+            </div>
+            <div
+              className="tier-slider-container slider-fill-from-avg relative"
+              style={
+                {
+                  '--slider-fill-start': `${concurrencyFillStart}%`,
+                  '--slider-fill-width': `${concurrencyFillWidth}%`,
+                } as React.CSSProperties
+              }
+            >
+              <div
+                className="absolute w-px bg-[#010101]/50 z-[2] pointer-events-none"
+                style={{
+                  left: `${avgConcurrencyPercent}%`,
+                  transform: 'translateX(-50%)',
+                  top: '-6px',
+                  height: '18px',
+                }}
+                aria-hidden
+              />
+              <input
+                type="range"
+                min={concurrency5}
+                max={concurrency10}
+                value={concurrency}
+                onChange={(e) => onConcurrencyChange(Number(e.target.value))}
+                className="tier-slider w-full appearance-none cursor-pointer relative z-10"
+                style={{ background: 'transparent', height: '6px' }}
+              />
+            </div>
+            <div className="relative flex justify-between mt-1 text-xs text-[#4F4F4E]">
+              <span>{concurrency5}</span>
+              <span className="absolute text-base font-bold text-[#010101]" style={{ left: `${concurrencyPercent}%`, transform: 'translateX(-50%)' }}>
+                {concurrency}
+              </span>
+              <span>{concurrency10}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -248,7 +248,7 @@ export function calculateStorageCosts(
     provider: 'azure',
     storageType: 'data-lake',
     replication: 'LRS',
-    label: 'Azure Data Lake Storage (LRS)',
+    label: 'Azure Data Lake (LRS)',
     monthlyCostUSD: dataLakeLRSCost,
   });
 
@@ -266,7 +266,7 @@ export function calculateStorageCosts(
     provider: 'azure',
     storageType: 'data-lake',
     replication: 'GRS',
-    label: 'Azure Data Lake Storage (GRS)',
+    label: 'Azure Data Lake (GRS)',
     monthlyCostUSD: dataLakeGRSCost,
   });
 
@@ -282,7 +282,7 @@ export function calculateStorageCosts(
     provider: 'azure',
     storageType: 'blob',
     replication: 'LRS',
-    label: 'Azure Blob Storage (LRS)',
+    label: 'Azure Blob (LRS)',
     monthlyCostUSD: blobLRSCost,
   });
 
@@ -298,7 +298,7 @@ export function calculateStorageCosts(
     provider: 'azure',
     storageType: 'blob',
     replication: 'GRS',
-    label: 'Azure Blob Storage (GRS)',
+    label: 'Azure Blob (GRS)',
     monthlyCostUSD: blobGRSCost,
   });
 

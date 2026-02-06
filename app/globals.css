@@ -290,6 +290,16 @@ input[type="number"].show-spinner::-webkit-outer-spin-button {
   transform: scale(1.2);
 }
 
+/* Tier slider container - fill from average (results page sliders) */
+.tier-slider-container.slider-fill-from-avg::before {
+  left: var(--slider-fill-start, 0%);
+  width: var(--slider-fill-width, 0%);
+}
+.tier-slider-container.slider-fill-from-avg::after {
+  left: var(--slider-fill-start, 0%);
+  width: var(--slider-fill-width, 0%);
+}
+
 /* Tier slider container */
 .tier-slider-container {
   position: relative;

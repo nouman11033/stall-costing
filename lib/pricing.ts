@@ -3,7 +3,7 @@
 export interface AvatarPlan {
   id: string;
   name: string;
-  provider: 'heygen' | 'anam' | 'tevus';
+  provider: 'heygen' | 'anam' | 'tavus';
   tier: string;
   monthlyPrice: number; // Monthly price in USD
   minutes: number;
@@ -56,18 +56,6 @@ export const AVATAR_PLANS: AvatarPlan[] = [
     maxLength: 20,
     concurrency: 20,
     additionalPerMin: 0.10,
-    hasInbuiltVoice: true,
-  },
-  {
-    id: 'heygen-business',
-    name: 'HeyGen Business',
-    provider: 'heygen',
-    tier: 'Business',
-    monthlyPrice: 0, // Custom pricing - not specified
-    minutes: 0, // Custom
-    maxLength: undefined,
-    concurrency: undefined, // Custom
-    additionalPerMin: 0,
     hasInbuiltVoice: true,
   },
   // HeyGen Enterprise Plan (Annual commitment only)
@@ -189,7 +177,7 @@ export const AVATAR_PLANS: AvatarPlan[] = [
   {
     id: 'tavus-starter',
     name: 'Tavus Starter',
-    provider: 'tevus', // Keep provider as 'tevus' for consistency
+    provider: 'tavus',
     tier: 'Starter',
     monthlyPrice: 59,
     minutes: 100,
@@ -201,7 +189,7 @@ export const AVATAR_PLANS: AvatarPlan[] = [
   {
     id: 'tavus-growth',
     name: 'Tavus Growth',
-    provider: 'tevus',
+    provider: 'tavus',
     tier: 'Growth',
     monthlyPrice: 397,
     minutes: 1250,
@@ -214,7 +202,7 @@ export const AVATAR_PLANS: AvatarPlan[] = [
   {
     id: 'tavus-enterprise-tier1',
     name: 'Tavus Enterprise Tier 1',
-    provider: 'tevus',
+    provider: 'tavus',
     tier: 'Enterprise',
     monthlyPrice: 1667, // $20,000 / 12
     minutes: 6667, // Minutes per month
@@ -230,7 +218,7 @@ export const AVATAR_PLANS: AvatarPlan[] = [
   {
     id: 'tavus-enterprise-tier2',
     name: 'Tavus Enterprise Tier 2',
-    provider: 'tevus',
+    provider: 'tavus',
     tier: 'Enterprise',
     monthlyPrice: 4917, // $59,000 / 12
     minutes: 24583, // Minutes per month (24,583)
@@ -246,7 +234,7 @@ export const AVATAR_PLANS: AvatarPlan[] = [
   {
     id: 'tavus-enterprise-tier3',
     name: 'Tavus Enterprise Tier 3',
-    provider: 'tevus',
+    provider: 'tavus',
     tier: 'Enterprise',
     monthlyPrice: 8329, // $99,950 / 12
     minutes: 59583, // Minutes per month (59,583)
@@ -262,7 +250,7 @@ export const AVATAR_PLANS: AvatarPlan[] = [
   {
     id: 'tavus-enterprise-tier4',
     name: 'Tavus Enterprise Tier 4',
-    provider: 'tevus',
+    provider: 'tavus',
     tier: 'Enterprise',
     monthlyPrice: 18200, // $218,400 / 12
     minutes: 200000, // Minutes per month
@@ -279,25 +267,6 @@ export const AVATAR_PLANS: AvatarPlan[] = [
 
 // Voice Agents
 export const VOICE_AGENTS: VoiceAgent[] = [
-  // Token-based pricing
-  {
-    id: 'gemini-live',
-    name: 'Gemini Live',
-    pricingModel: 'tokens',
-    pricePer1MTokens: 17.05,
-    tokensPerMinute: 3000, // 2,500-3,500 tokens/min (using average: 3,000)
-    tokensPerMinuteMin: 2500, // Minimum tokens per minute
-    tokensPerMinuteMax: 3500, // Maximum tokens per minute
-  },
-  {
-    id: 'gpt-realtime',
-    name: 'GPT Realtime',
-    pricingModel: 'tokens',
-    pricePer1MTokens: 116.00,
-    tokensPerMinute: 1010, // 670-1,350 tokens/min (using average: 1,010)
-    tokensPerMinuteMin: 670, // Minimum tokens per minute
-    tokensPerMinuteMax: 1350, // Maximum tokens per minute
-  },
   // Per-minute pricing
   {
     id: 'hume-pro',
@@ -336,12 +305,12 @@ export const VOICE_AGENTS: VoiceAgent[] = [
     concurrency: undefined, // Unlimited
   },
   {
-    id: 'grok',
-    name: 'Grok',
-    pricingModel: 'per-minute-per-concurrency',
-    pricePerMinute: 0.05,
-    monthlyBaseCost: 0, // No base cost
-    concurrency: undefined, // No limit specified
+    id: 'elevenlabs',
+    name: 'ElevenLabs',
+    pricingModel: 'per-minute',
+    pricePerMinute: 0.18,
+    monthlyBaseCost: 0,
+    concurrency: undefined,
   },
 ];
 

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 import { BudgetInput, calculateCombinations } from '@/lib/calculator';
-import BudgetForm from '@/components/BudgetForm';
+import BudgetForm, { AvatarDerived } from '@/components/BudgetForm';
 import StorageInput, { StorageInput as StorageInputType } from '@/components/StorageInput';
 
 // Animated Background Text Component
@@ -117,6 +117,7 @@ export default function Home() {
   const router = useRouter();
   const [isCalculating, setIsCalculating] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [avatarDerived, setAvatarDerived] = useState<AvatarDerived | null>(null);
   const [storageInput, setStorageInput] = useState<StorageInputType>({
     totalSizeGB: 1000,
     tierAllocation: {
@@ -235,8 +236,8 @@ export default function Home() {
               exit={{ x: -150, opacity: 0 }}
               transition={{ duration: 0.8, ease: [0.65, 0, 0.35, 1], delay: 0.05 }}
             >
-              <BudgetForm onSubmit={handleCalculate} isCalculating={isCalculating} />
-              <StorageInput storageInput={storageInput} onChange={setStorageInput} />
+              <BudgetForm onSubmit={handleCalculate} isCalculating={isCalculating} onAvatarDerivedChange={setAvatarDerived} />
+              <StorageInput storageInput={storageInput} onChange={setStorageInput} avatarDerived={avatarDerived} />
             </motion.div>
 
             {/* Generate Set Button - Below both cards */}
