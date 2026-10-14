@@ -12,6 +12,7 @@ import type { BudgetInput } from '@/lib/calculator';
 import ResultsDisplay from '@/components/ResultsDisplay';
 import { ArrowLeft } from 'lucide-react';
 import { convertUSDToINR } from '@/lib/pricing';
+import { lookRecommendationScore } from '@/lib/qualityLatency';
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -276,6 +277,79 @@ export default function ResultsPage() {
   );
 }
 
+function sliderProgress(value: number, min: number, max: number): number {
+  if (max <= min) return 0;
+  return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+}
+
+function VolumeSlider({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  const progress = sliderProgress(value, min, max);
+  const step = Math.max(1, Math.round((max - min) / 200));
+
+  return (
+    <div className="rounded-2xl border border-[#E5DDD1] bg-[#F9F4EE]/70 px-5 py-4">
+      <div className="flex items-end justify-between gap-3 mb-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-1">
+            {label}
+          </p>
+          <p className="text-2xl font-extrabold tabular-nums text-[#010101] leading-none">
+            {value.toLocaleString()}
+          </p>
+        </div>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isNaN(n)) return;
+            onChange(Math.min(max, Math.max(min, Math.round(n))));
+          }}
+          className="show-spinner w-28 px-2.5 py-1.5 rounded-lg border border-[#E5DDD1] bg-white text-sm font-semibold tabular-nums text-[#010101] text-right focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+          aria-label={`${label} exact value`}
+        />
+      </div>
+
+      <div
+        className="tier-slider-container results-volume-slider"
+        style={{ ['--slider-progress' as string]: `${progress}%` }}
+      >
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="tier-slider w-full"
+          aria-label={label}
+        />
+      </div>
+
+      <div className="mt-2.5 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E]">
+        <span>{min.toLocaleString()}</span>
+        <span className="text-[#010101]/50">{Math.round(progress)}%</span>
+        <span>{max.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
 function SlidersCard({
   input,
   images,
@@ -295,54 +369,25 @@ function SlidersCard({
   const maxModels = input?.maxModelsPerMonth ?? 1000;
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 mb-6 shadow-sm border border-white/50">
-      <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-base font-bold text-[#010101] mb-4" style={{
-                    fontFamily:
-                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                  }}>
-            Images per Month
-          </h3>
-          <div className="relative flex justify-between mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#4F4F4E]">
-            <span>{minImages.toLocaleString()}</span>
-            <span className="text-[#010101]">{images.toLocaleString()}</span>
-            <span>{maxImages.toLocaleString()}</span>
-          </div>
-          <div className="tier-slider-container">
-            <input
-              type="range"
-              min={minImages}
-              max={maxImages}
-              value={images}
-              onChange={(e) => onImagesChange(Number(e.target.value))}
-              className="tier-slider w-full"
-            />
-          </div>
-        </div>
-        <div>
-          <h3 className="text-base font-bold text-[#010101] mb-4" style={{
-                    fontFamily:
-                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                  }}>
-            3D Models per Month
-          </h3>
-          <div className="relative flex justify-between mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#4F4F4E]">
-            <span>{minModels.toLocaleString()}</span>
-            <span className="text-[#010101]">{models.toLocaleString()}</span>
-            <span>{maxModels.toLocaleString()}</span>
-          </div>
-          <div className="tier-slider-container">
-            <input
-              type="range"
-              min={minModels}
-              max={maxModels}
-              value={models}
-              onChange={(e) => onModelsChange(Number(e.target.value))}
-              className="tier-slider w-full"
-            />
-          </div>
-        </div>
+    <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 sm:p-6 mb-6 shadow-sm border border-white/50">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-3">
+        Adjust volume · costs update live
+      </p>
+      <div className="grid md:grid-cols-2 gap-4">
+        <VolumeSlider
+          label="Images per Month"
+          value={images}
+          min={minImages}
+          max={maxImages}
+          onChange={onImagesChange}
+        />
+        <VolumeSlider
+          label="3D Models per Month"
+          value={models}
+          min={minModels}
+          max={maxModels}
+          onChange={onModelsChange}
+        />
       </div>
     </div>
   );
@@ -366,13 +411,18 @@ function SortOptions({
         })
       );
     } else {
-      setResults([...results].sort((a, b) => b.score - a.score));
+      // Best look first: Image 50% + 3D 40% + LLM 10%; cost only breaks ties
+      setResults(
+        [...results].sort(
+          (a, b) => lookRecommendationScore(b) - lookRecommendationScore(a)
+        )
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortMode]);
 
   return (
-    <div className="flex items-center gap-2 mb-6">
+    <div className="flex flex-wrap items-center gap-2 mb-6">
       <button
         type="button"
         onClick={() => setSortMode('cost')}
@@ -387,6 +437,7 @@ function SortOptions({
       <button
         type="button"
         onClick={() => setSortMode('recommendations')}
+        title="Ranks by visual look (image + 3D quality) over cost"
         className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
           sortMode === 'recommendations'
             ? 'bg-[#010101] text-white border-[#010101]'
@@ -395,6 +446,11 @@ function SortOptions({
       >
         Recommendations
       </button>
+      {sortMode === 'recommendations' && (
+        <span className="text-[11px] text-[#4F4F4E]">
+          Best look · Image + 3D quality over cost
+        </span>
+      )}
     </div>
   );
 }

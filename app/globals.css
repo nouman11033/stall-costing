@@ -237,6 +237,7 @@ input[type="number"].show-spinner::-webkit-outer-spin-button {
 /* Tier Slider - Same style as minutes slider for Hot/Cold/Archive */
 .tier-slider {
   position: relative;
+  z-index: 10;
   background: transparent !important;
   height: 6px;
   border: none;
@@ -256,21 +257,25 @@ input[type="number"].show-spinner::-webkit-outer-spin-button {
 .tier-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 7px;
-  height: 7px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #010101;
-  border: none;
+  border: 2px solid #F9F4EE;
   cursor: pointer;
   z-index: 20;
-  box-shadow: none;
-  transition: transform 0.2s ease;
-  margin-top: -2px;
+  box-shadow: 0 1px 4px rgba(1, 1, 1, 0.35);
+  transition: transform 0.15s ease;
+  margin-top: -5px;
   position: relative;
 }
 
 .tier-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.15);
+}
+
+.tier-slider::-webkit-slider-thumb:active {
+  transform: scale(1.05);
 }
 
 .tier-slider::-moz-range-track {
@@ -281,20 +286,44 @@ input[type="number"].show-spinner::-webkit-outer-spin-button {
 }
 
 .tier-slider::-moz-range-thumb {
-  width: 7px;
-  height: 7px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #010101;
-  border: none;
+  border: 2px solid #F9F4EE;
   cursor: pointer;
-  box-shadow: none;
-  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(1, 1, 1, 0.35);
+  transition: transform 0.15s ease;
   position: relative;
   z-index: 20;
 }
 
 .tier-slider::-moz-range-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.15);
+}
+
+.results-volume-slider {
+  height: 8px;
+  border-radius: 999px;
+  background: #E5DDD1;
+}
+
+.results-volume-slider::before,
+.results-volume-slider::after {
+  height: 8px;
+  border-radius: 999px;
+}
+
+.results-volume-slider .tier-slider {
+  height: 8px;
+}
+
+.results-volume-slider .tier-slider::-webkit-slider-runnable-track {
+  height: 8px;
+}
+
+.results-volume-slider .tier-slider::-moz-range-track {
+  height: 8px;
 }
 
 /* Tier slider container - fill from average (results page sliders) */

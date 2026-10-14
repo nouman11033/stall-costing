@@ -49,3 +49,20 @@ export function calculateQuality(combination: Combination): QualityResult {
         : 'Card Quality Pts = mean(Image, 3D, LLM) public-opinion proxies from ranking workbook.',
   };
 }
+
+/**
+ * Recommendations ranking: visual look (Image + 3D) over cost.
+ * Weights: Image 50% · 3D 40% · LLM 10%. Cost is only a tiny tiebreaker.
+ */
+export function lookRecommendationScore(combination: Combination): number {
+  const image =
+    combination.imageQualityIndex ?? combination.imagePlan.qualityPts ?? 0;
+  const threeD =
+    combination.threeDQualityIndex ?? combination.threeDPlan.qualityPts ?? 0;
+  const llm = combination.llmModel?.qualityPts ?? 0;
+  const look = 0.5 * image + 0.4 * threeD + 0.1 * llm;
+  const costTiebreak = combination.isPriced
+    ? combination.totalCostUSD * 0.001
+    : 100;
+  return look * 1000 - costTiebreak;
+}

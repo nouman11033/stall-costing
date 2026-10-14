@@ -309,17 +309,20 @@ function buildBreakdown(
   };
 }
 
+/** Stored recommendation score — visual look (image+3D) over cost. */
 function scoreCombination(
   isPriced: boolean,
   totalCostUSD: number,
   imagePlan: ImagePlan,
-  threeDPlan: ThreeDPlan
+  threeDPlan: ThreeDPlan,
+  llmModel: LLMModel
 ): number {
-  if (!isPriced) return -1_000_000;
-  let score = 1_000_000 - totalCostUSD * 100;
-  if (imagePlan.status === 'Published') score += 50;
-  if (threeDPlan.status === 'Published') score += 50;
-  return score;
+  const image = imagePlan.qualityPts ?? 0;
+  const threeD = threeDPlan.qualityPts ?? 0;
+  const llm = llmModel.qualityPts ?? 0;
+  const look = 0.5 * image + 0.4 * threeD + 0.1 * llm;
+  const costTiebreak = isPriced ? totalCostUSD * 0.001 : 100;
+  return look * 1000 - costTiebreak;
 }
 
 function infraLabelFor(_stack: StorageStack): string {
@@ -375,7 +378,13 @@ function buildQuad(
     totalCostINR: breakdown.totalCostINR,
     breakdown,
     fitsBudget: true,
-    score: scoreCombination(isPriced, breakdown.totalCostUSD, imagePlan, threeDPlan),
+    score: scoreCombination(
+      isPriced,
+      breakdown.totalCostUSD,
+      imagePlan,
+      threeDPlan,
+      llmModel
+    ),
     warnings,
     imageQualityIndex: imagePlan.qualityPts ?? null,
     threeDQualityIndex: threeDPlan.qualityPts ?? null,
