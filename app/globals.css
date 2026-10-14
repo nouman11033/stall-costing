@@ -302,28 +302,60 @@ input[type="number"].show-spinner::-webkit-outer-spin-button {
   transform: scale(1.15);
 }
 
+/* Results page volume sliders — thumb vertically centered on 8px track */
 .results-volume-slider {
-  height: 8px;
+  height: 20px;
   border-radius: 999px;
-  background: #E5DDD1;
+  background: transparent;
+  background-image: linear-gradient(#E5DDD1, #E5DDD1);
+  background-size: 100% 8px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .results-volume-slider::before,
 .results-volume-slider::after {
+  top: 50%;
+  transform: translateY(-50%);
   height: 8px;
   border-radius: 999px;
+  box-shadow: none;
+}
+
+.results-volume-slider::after {
+  animation: none;
+  opacity: 0;
+  background: none;
 }
 
 .results-volume-slider .tier-slider {
-  height: 8px;
+  height: 20px;
+  margin: 0;
 }
 
 .results-volume-slider .tier-slider::-webkit-slider-runnable-track {
   height: 8px;
+  background: transparent;
+}
+
+.results-volume-slider .tier-slider::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -4px; /* (16 − 8) / 2 */
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(1, 1, 1, 0.35);
 }
 
 .results-volume-slider .tier-slider::-moz-range-track {
   height: 8px;
+  background: transparent;
+}
+
+.results-volume-slider .tier-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(1, 1, 1, 0.35);
 }
 
 /* Tier slider container - fill from average (results page sliders) */

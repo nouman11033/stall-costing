@@ -157,7 +157,7 @@ export default function ResultsPage() {
               <ArrowLeft className="w-6 h-6 text-[#010101]" />
             </button>
             <motion.h1
-              className="text-7xl lg:text-6xl font-black text-[#010101] tracking-tight"
+              className="text-7xl lg:text-6xl font-semibold text-[#010101] tracking-tight"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
@@ -171,7 +171,7 @@ export default function ResultsPage() {
             <div className="flex items-center justify-between divide-x divide-[#D4CCC0]/30">
               <div className="flex-1 px-6 first:pl-0">
                 <h3
-                  className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
+                  className="text-sm font-medium text-[#010101]/60 tracking-wide mb-2"
                   style={{
                     fontFamily:
                       'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -179,13 +179,13 @@ export default function ResultsPage() {
                 >
                   COMBINATIONS
                 </h3>
-                <div className="text-lg font-bold text-[#010101]">{results.length}</div>
+                <div className="text-lg font-medium text-[#010101]">{results.length}</div>
                 <div className="text-sm text-[#010101]/60">{priced.length} priced</div>
               </div>
 
               <div className="flex-1 px-6">
                 <h3
-                  className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
+                  className="text-sm font-medium text-[#010101]/60 tracking-wide mb-2"
                   style={{
                     fontFamily:
                       'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -193,7 +193,7 @@ export default function ResultsPage() {
                 >
                   AVERAGE COST
                 </h3>
-                <div className="text-lg font-bold text-[#010101]">
+                <div className="text-lg font-medium text-[#010101]">
                   {formatUSD(dynamicMetrics.averageCostUSD)}
                 </div>
                 <div className="text-sm text-[#010101]/60">
@@ -203,7 +203,7 @@ export default function ResultsPage() {
 
               <div className="flex-1 px-6">
                 <h3
-                  className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
+                  className="text-sm font-medium text-[#010101]/60 tracking-wide mb-2"
                   style={{
                     fontFamily:
                       'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -211,14 +211,14 @@ export default function ResultsPage() {
                 >
                   AI $/IMAGE
                 </h3>
-                <div className="text-lg font-bold text-[#010101]">
+                <div className="text-lg font-medium text-[#010101]">
                   {formatUSD(dynamicMetrics.aiPerImage)}
                 </div>
               </div>
 
               <div className="flex-1 px-6">
                 <h3
-                  className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
+                  className="text-sm font-medium text-[#010101]/60 tracking-wide mb-2"
                   style={{
                     fontFamily:
                       'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -226,14 +226,14 @@ export default function ResultsPage() {
                 >
                   AI $/3D MODEL
                 </h3>
-                <div className="text-lg font-bold text-[#010101]">
+                <div className="text-lg font-medium text-[#010101]">
                   {formatUSD(dynamicMetrics.aiPerModel)}
                 </div>
               </div>
 
               <div className="flex-1 px-6 last:pr-0">
                 <h3
-                  className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
+                  className="text-sm font-medium text-[#010101]/60 tracking-wide mb-2"
                   style={{
                     fontFamily:
                       'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -241,7 +241,7 @@ export default function ResultsPage() {
                 >
                   COST RANGE
                 </h3>
-                <div className="text-lg font-bold text-[#010101]">
+                <div className="text-lg font-medium text-[#010101]">
                   {priced.length > 0
                     ? `${formatUSD(fixedMetrics.totalMin)} – ${formatUSD(fixedMetrics.totalMax)}`
                     : '—'}
@@ -302,10 +302,10 @@ function VolumeSlider({
     <div className="rounded-2xl border border-[#E5DDD1] bg-[#F9F4EE]/70 px-5 py-4">
       <div className="flex items-end justify-between gap-3 mb-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-1">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E] mb-1">
             {label}
           </p>
-          <p className="text-2xl font-extrabold tabular-nums text-[#010101] leading-none">
+          <p className="text-2xl font-semibold tabular-nums text-[#010101] leading-none">
             {value.toLocaleString()}
           </p>
         </div>
@@ -320,7 +320,7 @@ function VolumeSlider({
             if (Number.isNaN(n)) return;
             onChange(Math.min(max, Math.max(min, Math.round(n))));
           }}
-          className="show-spinner w-28 px-2.5 py-1.5 rounded-lg border border-[#E5DDD1] bg-white text-sm font-semibold tabular-nums text-[#010101] text-right focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
+          className="show-spinner w-28 px-2.5 py-1.5 rounded-lg border border-[#E5DDD1] bg-white text-sm font-medium tabular-nums text-[#010101] text-right focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
           aria-label={`${label} exact value`}
         />
       </div>
@@ -341,7 +341,7 @@ function VolumeSlider({
         />
       </div>
 
-      <div className="mt-2.5 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E]">
+      <div className="mt-2.5 flex justify-between text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E]">
         <span>{min.toLocaleString()}</span>
         <span className="text-[#010101]/50">{Math.round(progress)}%</span>
         <span>{max.toLocaleString()}</span>
@@ -370,7 +370,7 @@ function SlidersCard({
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-5 sm:p-6 mb-6 shadow-sm border border-white/50">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-3">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E] mb-3">
         Adjust volume · costs update live
       </p>
       <div className="grid md:grid-cols-2 gap-4">
@@ -426,7 +426,7 @@ function SortOptions({
       <button
         type="button"
         onClick={() => setSortMode('cost')}
-        className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
+        className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
           sortMode === 'cost'
             ? 'bg-[#010101] text-white border-[#010101]'
             : 'bg-white/80 text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
@@ -438,7 +438,7 @@ function SortOptions({
         type="button"
         onClick={() => setSortMode('recommendations')}
         title="Ranks by visual look (image + 3D quality) over cost"
-        className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
+        className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
           sortMode === 'recommendations'
             ? 'bg-[#010101] text-white border-[#010101]'
             : 'bg-white/80 text-[#010101] border-[#E5DDD1] hover:border-[#010101]'

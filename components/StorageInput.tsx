@@ -91,13 +91,13 @@ function Field({
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5 gap-2">
-        <label className="block text-xs font-semibold text-[#010101]">{label}</label>
+        <label className="block text-xs font-medium text-[#010101]">{label}</label>
         {isAuto !== undefined && (
           <button
             type="button"
             onClick={onReset}
             disabled={isAuto}
-            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-all ${
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition-all ${
               isAuto
                 ? 'bg-[#010101] text-white border-[#010101] cursor-default'
                 : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
@@ -266,7 +266,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
           <div className="flex items-center justify-between border-b border-[#E5DDD1] px-4 py-3 flex-shrink-0">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-[#010101]" />
-              <span className="text-sm font-bold text-[#010101]">Budget & Infra</span>
+              <span className="text-sm font-medium text-[#010101]">Budget & Infra</span>
             </div>
             <button
               type="button"
@@ -280,7 +280,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
 
           <div className="flex-1 overflow-y-auto p-4 space-y-5">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E] mb-2">
                 Token Budget {manualEdit ? '(editable)' : '(from chat volume)'}
               </p>
               <p className="text-[10px] text-[#4F4F4E] mb-3">
@@ -318,7 +318,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
             </div>
 
             <div className="border-t border-[#E5DDD1] pt-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E] mb-2">
                 Fixed infra (USD / mo)
               </p>
               <p className="text-[10px] text-[#4F4F4E] mb-3">Same on every combo · R2 holds 2D/3D</p>
@@ -385,7 +385,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
             </div>
             <div>
               <h2
-                className="text-2xl font-bold text-[#010101]"
+                className="text-2xl font-medium text-[#010101]"
                 style={{
                   fontFamily:
                     'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -405,13 +405,13 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
             {/* Chat volume */}
             <div>
               <div className="flex items-center justify-between mb-2 gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E]">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E]">
                   Chat Volume
                 </p>
                 <button
                   type="button"
                   onClick={toggleManualEdit}
-                  className={`text-[10px] font-semibold px-2 py-1 rounded-md border transition-all ${
+                  className={`text-[10px] font-medium px-2 py-1 rounded-md border transition-all ${
                     manualEdit
                       ? 'bg-[#010101] text-white border-[#010101]'
                       : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
@@ -428,7 +428,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
                       key={p.id}
                       type="button"
                       onClick={() => applyChatVolume(p.id)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                         active
                           ? 'bg-[#010101] text-white border-[#010101]'
                           : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
@@ -442,25 +442,25 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
               <div className="rounded-lg border border-[#E5DDD1] bg-[#F9F4EE] px-3 py-2 text-[10px] text-[#4F4F4E] space-y-0.5">
                 <div className="flex justify-between">
                   <span>Preset</span>
-                  <span className="font-semibold text-[#010101]">
+                  <span className="font-medium text-[#010101]">
                     {manualEdit ? 'Manual' : preset.name}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Est. chats / mo</span>
-                  <span className="font-semibold text-[#010101]">
+                  <span className="font-medium text-[#010101]">
                     {preset.estimatedChats.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Words / chat</span>
-                  <span className="font-semibold text-[#010101]">
+                  <span className="font-medium text-[#010101]">
                     ~{preset.totalWordsPerChat.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-[#E5DDD1] mt-1">
                   <span>Token budget</span>
-                  <span className="font-semibold text-[#010101]">{tokenBudgetLabel}</span>
+                  <span className="font-medium text-[#010101]">{tokenBudgetLabel}</span>
                 </div>
               </div>
             </div>
@@ -468,13 +468,13 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
             {/* LLM combination axis */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E]">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E]">
                   LLM Models (combination)
                 </p>
                 <button
                   type="button"
                   onClick={toggleAllLlms}
-                  className="text-[10px] font-semibold text-[#010101] underline"
+                  className="text-[10px] font-medium text-[#010101] underline"
                 >
                   {selectedLlms.length === LLM_MODELS.length ? 'Clear to one' : 'Select all'}
                 </button>
@@ -487,7 +487,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
                       key={m.id}
                       type="button"
                       onClick={() => toggleLlm(m.id)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
                         active
                           ? 'bg-[#010101] text-white border-[#010101]'
                           : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
@@ -506,7 +506,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
 
             {/* Embedding */}
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-[#4F4F4E] mb-2">
                 Embedding Model
               </p>
               <div className="flex flex-wrap gap-2">
@@ -517,7 +517,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
                       key={m.id}
                       type="button"
                       onClick={() => setEmbedding(m.id)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
                         active
                           ? 'bg-[#010101] text-white border-[#010101]'
                           : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
@@ -538,7 +538,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
           <button
             type="button"
             onClick={() => setDrawerOpen((o) => !o)}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-md transition-all ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-md transition-all ${
               drawerOpen
                 ? 'bg-[#1a1a1a] text-white border border-[#010101]'
                 : 'bg-[#010101] text-white hover:bg-[#1a1a1a]'

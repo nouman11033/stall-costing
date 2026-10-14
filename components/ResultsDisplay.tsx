@@ -291,7 +291,7 @@ export default function ResultsDisplay({
             <button
               type="button"
               onClick={() => setDisplayCurrency('USD')}
-              className={`px-3 py-2 text-sm font-semibold transition-colors ${
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
                 displayCurrency === 'USD'
                   ? 'bg-[#010101] text-white'
                   : 'bg-[#F9F4EE] text-[#010101] hover:border-[#010101]'
@@ -302,7 +302,7 @@ export default function ResultsDisplay({
             <button
               type="button"
               onClick={() => setDisplayCurrency('INR')}
-              className={`px-3 py-2 text-sm font-semibold transition-colors border-l border-[#E5DDD1] ${
+              className={`px-3 py-2 text-sm font-medium transition-colors border-l border-[#E5DDD1] ${
                 displayCurrency === 'INR'
                   ? 'bg-[#010101] text-white'
                   : 'bg-[#F9F4EE] text-[#010101]'
@@ -316,7 +316,7 @@ export default function ResultsDisplay({
           type="button"
           onClick={handleExport}
           disabled={isExporting || filteredResults.length === 0}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#010101] text-white text-sm font-semibold hover:bg-[#1a1a1a] disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#010101] text-white text-sm font-medium hover:bg-[#1a1a1a] disabled:opacity-50"
         >
           <Download className="w-4 h-4" />
           {isExporting ? 'Exporting...' : 'Export Excel'}
@@ -354,7 +354,7 @@ export default function ResultsDisplay({
             ] as const
           ).map(([label, key, opts, fmt]) => (
             <div key={key}>
-              <label className="block text-xs font-semibold text-[#010101] mb-1.5">{label}</label>
+              <label className="block text-xs font-medium text-[#010101] mb-1.5">{label}</label>
               <select
                 multiple
                 value={filters[key]}
@@ -524,7 +524,7 @@ function CombinationCard({
       {!combination.isPriced && (
         <div className="absolute -top-1 -left-1 z-20 transform -rotate-12 origin-center pointer-events-none">
           <div className="px-4 py-1.5 rounded-md bg-amber-100 text-amber-900 shadow-xl backdrop-blur-sm border-2 border-white/50 dark:border-gray-900/50">
-            <span className="flex items-center text-[0.6rem] font-bold">Unresolved USD</span>
+            <span className="flex items-center text-[0.6rem] font-medium">Unresolved USD</span>
           </div>
         </div>
       )}
@@ -535,7 +535,7 @@ function CombinationCard({
           e.stopPropagation();
           onToggleBookmark();
         }}
-        className={`absolute -top-1 right-4 z-30 px-2.5 py-1 rounded-md text-[0.6rem] font-bold border-2 shadow-xl backdrop-blur-sm transition-all ${
+        className={`absolute -top-1 right-4 z-30 px-2.5 py-1 rounded-md text-[0.6rem] font-medium border-2 shadow-xl backdrop-blur-sm transition-all ${
           isBookmarked
             ? 'bg-[#010101] text-white border-white/50 dark:border-gray-700'
             : 'bg-amber-100 text-amber-900 border-white/50 dark:border-gray-900/50'
@@ -550,12 +550,12 @@ function CombinationCard({
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
         <div className="flex-shrink-0">
           <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#010101] dark:bg-white shadow-lg">
-            <span className="text-lg font-extrabold text-white dark:text-black">#{rank}</span>
+            <span className="text-lg font-medium text-white dark:text-black">#{rank}</span>
           </div>
         </div>
 
         <div className="flex-shrink-0 text-center sm:text-left min-w-[140px]">
-          <div className="text-2xl font-extrabold text-[#010101] dark:text-white">
+          <div className="text-2xl font-semibold text-[#010101] dark:text-white">
             {combination.isPriced ? money(displayBreakdown.totalCostUSD) : 'Not ranked'}
           </div>
           {combination.isPriced && costRange && (
@@ -572,10 +572,10 @@ function CombinationCard({
 
         <div className="flex-1 w-full sm:w-auto grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="space-y-1">
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {combination.imagePlan.name}
             </div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {unitPrice !== undefined
                 ? `${money(displayBreakdown.imageCostUSD)}/mo`
                 : '—'}
@@ -587,10 +587,10 @@ function CombinationCard({
             )}
           </div>
           <div className="space-y-1">
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {combination.threeDPlan.providerLabel}
             </div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {combination.isPriced
                 ? `${money(displayBreakdown.threeDCostUSD)}/mo`
                 : 'Unresolved'}
@@ -602,31 +602,31 @@ function CombinationCard({
             )}
           </div>
           <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E] dark:text-gray-400">
+            <div className="text-xs font-medium uppercase tracking-wider text-[#4F4F4E] dark:text-gray-400">
               Storage
             </div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm">{storageName}</div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">{storageName}</div>
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {money(displayBreakdown.storageCostUSD ?? 0)}/mo
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E] dark:text-gray-400">
+            <div className="text-xs font-medium uppercase tracking-wider text-[#4F4F4E] dark:text-gray-400">
               LLM
             </div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm" title={llmName}>
+            <div className="font-medium text-[#010101] dark:text-white text-sm" title={llmName}>
               {llmName}
             </div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {money(displayBreakdown.llmCostUSD + displayBreakdown.embeddingCostUSD)}
               /mo
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-xs font-bold uppercase tracking-wider text-[#4F4F4E] dark:text-gray-400">
+            <div className="text-xs font-medium uppercase tracking-wider text-[#4F4F4E] dark:text-gray-400">
               Quality
             </div>
-            <div className="font-bold text-[#010101] dark:text-white text-sm">
+            <div className="font-medium text-[#010101] dark:text-white text-sm">
               {quality.overallQualityScore > 0
                 ? `${quality.overallQualityScore.toFixed(1)}/10`
                 : 'N/A'}
@@ -663,10 +663,10 @@ function CombinationCard({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-[0.6rem]">
             {/* IMAGE — gray like old Avatar */}
             <div className="col-span-1 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black rounded-xl p-4 border border-gray-200 dark:border-gray-800 relative">
-              <div className="absolute -top-2 right-2 bg-black text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
+              <div className="absolute -top-2 right-2 bg-black text-white text-[0.6rem] font-medium px-2 py-0.5 rounded-md shadow-md z-10">
                 {formatProviderName(combination.imagePlan.provider)}
               </div>
-              <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">
+              <div className="text-[0.7rem] font-medium text-gray-900 dark:text-white mb-3">
                 Image Cost Breakdown
               </div>
               <div className="h-32 mb-3">
@@ -701,7 +701,7 @@ function CombinationCard({
                 <div className="pb-2 border-b border-gray-300 dark:border-gray-700 space-y-1">
                   <div className="flex justify-between">
                     <span>Image Plan:</span>
-                    <span className="font-semibold">{combination.imagePlan.name}</span>
+                    <span className="font-medium">{combination.imagePlan.name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Unit Price:</span>
@@ -714,7 +714,7 @@ function CombinationCard({
                     <span>{combination.imagePlan.status}</span>
                   </div>
                 </div>
-                <div className="font-semibold text-gray-900 dark:text-white">Volume Cost:</div>
+                <div className="font-medium text-gray-900 dark:text-white">Volume Cost:</div>
                 <div className="pl-2 space-y-1">
                   <div className="flex justify-between">
                     <span>Images / month:</span>
@@ -733,7 +733,7 @@ function CombinationCard({
                     {imageRetry})
                   </div>
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
-                    <span className="font-bold text-gray-900 dark:text-white">Total Image Cost:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">Total Image Cost:</span>
                     <MoneyPair usd={displayBreakdown.imageCostUSD} inrRate={fx} />
                   </div>
                 </div>
@@ -742,10 +742,10 @@ function CombinationCard({
 
             {/* 3D — blue/indigo like old Voice */}
             <div className="col-span-1 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-xl p-4 border border-blue-200 dark:border-blue-900 relative">
-              <div className="absolute -top-2 right-2 bg-blue-600 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
+              <div className="absolute -top-2 right-2 bg-blue-600 text-white text-[0.6rem] font-medium px-2 py-0.5 rounded-md shadow-md z-10">
                 {combination.threeDPlan.providerLabel}
               </div>
-              <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">
+              <div className="text-[0.7rem] font-medium text-gray-900 dark:text-white mb-3">
                 3D Cost Breakdown
               </div>
               <div className="h-32 mb-3">
@@ -776,7 +776,7 @@ function CombinationCard({
                 <div className="pb-2 border-b border-gray-300 dark:border-gray-700 space-y-1">
                   <div className="flex justify-between">
                     <span>3D Plan:</span>
-                    <span className="font-semibold">{combination.threeDPlan.name}</span>
+                    <span className="font-medium">{combination.threeDPlan.name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Workflow:</span>
@@ -793,7 +793,7 @@ function CombinationCard({
                     <span>{formatUSD(threeDTexture)}</span>
                   </div>
                 </div>
-                <div className="font-semibold text-gray-900 dark:text-white">Volume Cost:</div>
+                <div className="font-medium text-gray-900 dark:text-white">Volume Cost:</div>
                 <div className="pl-2 space-y-1">
                   <div className="flex justify-between">
                     <span>Models / month:</span>
@@ -818,7 +818,7 @@ function CombinationCard({
                     <MoneyPair usd={displayBreakdown.threeDTextureCostUSD} inrRate={fx} />
                   </div>
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
-                    <span className="font-bold text-gray-900 dark:text-white">Total 3D Cost:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">Total 3D Cost:</span>
                     <MoneyPair usd={displayBreakdown.threeDCostUSD} inrRate={fx} />
                   </div>
                 </div>
@@ -827,10 +827,10 @@ function CombinationCard({
 
             {/* LLM — purple/pink like old Hosting */}
             <div className="col-span-1 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 rounded-xl p-4 border border-purple-200 dark:border-purple-900 relative">
-              <div className="absolute -top-2 right-2 bg-purple-600 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
+              <div className="absolute -top-2 right-2 bg-purple-600 text-white text-[0.6rem] font-medium px-2 py-0.5 rounded-md shadow-md z-10">
                 {llmName}
               </div>
-              <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">
+              <div className="text-[0.7rem] font-medium text-gray-900 dark:text-white mb-3">
                 LLM & Embeddings Breakdown
               </div>
               <div className="h-32 mb-3">
@@ -862,7 +862,7 @@ function CombinationCard({
                 <div className="pb-2 border-b border-gray-300 dark:border-gray-700 space-y-1">
                   <div className="flex justify-between">
                     <span>LLM Model:</span>
-                    <span className="font-semibold">{llmName}</span>
+                    <span className="font-medium">{llmName}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Provider:</span>
@@ -870,7 +870,7 @@ function CombinationCard({
                   </div>
                   <div className="flex justify-between">
                     <span>Chat Volume:</span>
-                    <span className="font-semibold">{chatPreset}</span>
+                    <span className="font-medium">{chatPreset}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Est. chats / mo:</span>
@@ -896,12 +896,12 @@ function CombinationCard({
                   </div>
                   <div className="flex justify-between">
                     <span>Embedding Model:</span>
-                    <span className="font-semibold">
+                    <span className="font-medium">
                       {combination.embeddingModelName || '—'}
                     </span>
                   </div>
                 </div>
-                <div className="font-semibold text-gray-900 dark:text-white">Token Charges:</div>
+                <div className="font-medium text-gray-900 dark:text-white">Token Charges:</div>
                 <div className="pl-2 space-y-1">
                   <div className="flex justify-between">
                     <span>Input tokens:</span>
@@ -936,7 +936,7 @@ function CombinationCard({
                     <MoneyPair usd={displayBreakdown.embeddingCostUSD} inrRate={fx} />
                   </div>
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
-                    <span className="font-bold text-gray-900 dark:text-white">Total LLM + Embed:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">Total LLM + Embed:</span>
                     <MoneyPair
                       usd={displayBreakdown.llmCostUSD + displayBreakdown.embeddingCostUSD}
                       inrRate={fx}
@@ -948,10 +948,10 @@ function CombinationCard({
 
             {/* STORAGE — always Cloudflare R2 */}
             <div className="col-span-1 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 rounded-xl p-4 border border-purple-200 dark:border-purple-900 relative">
-              <div className="absolute -top-2 right-2 bg-pink-600 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
+              <div className="absolute -top-2 right-2 bg-pink-600 text-white text-[0.6rem] font-medium px-2 py-0.5 rounded-md shadow-md z-10">
                 R2
               </div>
-              <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">
+              <div className="text-[0.7rem] font-medium text-gray-900 dark:text-white mb-3">
                 Storage Cost Breakdown
               </div>
               <div className="h-32 mb-3">
@@ -982,7 +982,7 @@ function CombinationCard({
                 <div className="pb-2 border-b border-gray-300 dark:border-gray-700 space-y-1">
                   <div className="flex justify-between">
                     <span>Asset store:</span>
-                    <span className="font-semibold">Cloudflare R2</span>
+                    <span className="font-medium">Cloudflare R2</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Holds:</span>
@@ -1008,7 +1008,7 @@ function CombinationCard({
                   </div>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
-                  <span className="font-bold text-gray-900 dark:text-white">Total R2 Cost:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">Total R2 Cost:</span>
                   <MoneyPair usd={displayBreakdown.storageCostUSD ?? 0} inrRate={fx} />
                 </div>
                 <p className="text-[0.55rem] text-gray-500 italic">
@@ -1019,10 +1019,10 @@ function CombinationCard({
 
             {/* FIXED INFRA — grey */}
             <div className="col-span-1 lg:col-span-2 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black rounded-xl p-4 border border-gray-200 dark:border-gray-800 relative">
-              <div className="absolute -top-2 right-2 bg-gray-500 text-white text-[0.6rem] font-semibold px-2 py-0.5 rounded-md shadow-md z-10">
+              <div className="absolute -top-2 right-2 bg-gray-500 text-white text-[0.6rem] font-medium px-2 py-0.5 rounded-md shadow-md z-10">
                 Fixed Infra
               </div>
-              <div className="text-[0.7rem] font-semibold text-gray-900 dark:text-white mb-3">
+              <div className="text-[0.7rem] font-medium text-gray-900 dark:text-white mb-3">
                 Infrastructure Cost Breakdown
               </div>
               <div className="h-32 mb-3">
@@ -1053,7 +1053,7 @@ function CombinationCard({
               </div>
               <div className="grid sm:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300 text-[0.6rem]">
                 <div className="space-y-1">
-                  <div className="font-semibold text-gray-900 dark:text-white mb-1">Stack label</div>
+                  <div className="font-medium text-gray-900 dark:text-white mb-1">Stack label</div>
                   <div className="text-[0.7rem]">{infraName}</div>
                   <p className="text-[0.55rem] text-gray-500 italic mt-2">
                     Fixed hosting is the same on every combo. Storage stack above varies by
@@ -1078,11 +1078,11 @@ function CombinationCard({
                     <MoneyPair usd={input?.monitoringMonthlyUSD ?? 0} inrRate={fx} />
                   </div>
                   <div className="flex justify-between pt-1 border-t border-gray-300 dark:border-gray-700">
-                    <span className="font-bold text-gray-900 dark:text-white">Total Fixed Infra:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">Total Fixed Infra:</span>
                     <MoneyPair usd={displayBreakdown.fixedInfraCostUSD ?? 0} inrRate={fx} />
                   </div>
                   <div className="flex justify-between pt-2 mt-2 border-t border-gray-300 dark:border-gray-700">
-                    <span className="font-bold text-gray-900 dark:text-white">
+                    <span className="font-medium text-gray-900 dark:text-white">
                       Margin (default ₹5,000):
                     </span>
                     <MoneyPair usd={displayBreakdown.marginCostUSD ?? 0} inrRate={fx} />
@@ -1092,11 +1092,11 @@ function CombinationCard({
             </div>
           </div>
 
-          {/* TOTAL SUMMARY — black / white */}
-          <div className="mt-4 col-span-full bg-[#010101] rounded-xl p-6 shadow-xl">
-            <div className="mb-6 pb-4 border-b border-white/20">
-              <div className="text-2xl font-extrabold text-white mb-1">Total Monthly Cost</div>
-              <div className="text-sm text-white/70">
+          {/* TOTAL SUMMARY — white / black / grey */}
+          <div className="mt-4 col-span-full bg-white rounded-xl p-6 shadow-sm border border-[#E5DDD1]">
+            <div className="mb-6 pb-4 border-b border-[#E5DDD1]">
+              <div className="text-2xl font-semibold text-[#010101] mb-1">Total Monthly Cost</div>
+              <div className="text-sm text-[#4F4F4E]">
                 Complete cost breakdown for this combination
               </div>
             </div>
@@ -1104,8 +1104,8 @@ function CombinationCard({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <div className="mb-3">
-                  <div className="text-sm font-semibold text-white mb-1">Cost Distribution</div>
-                  <div className="text-xs text-white/60">Visual breakdown by component</div>
+                  <div className="text-sm font-medium text-[#010101] mb-1">Cost Distribution</div>
+                  <div className="text-xs text-[#4F4F4E]">Visual breakdown by component</div>
                 </div>
                 <div className="flex items-start gap-4">
                   <div className="flex-1 h-56">
@@ -1136,18 +1136,18 @@ function CombinationCard({
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex-shrink-0 space-y-2.5 text-[0.7rem] text-white">
+                  <div className="flex-shrink-0 space-y-2.5 text-[0.7rem]">
                     {[...pieData]
                       .sort((a, b) => b.value - a.value)
                       .map((entry, index) => (
                         <div key={index} className="flex items-center gap-2.5">
                           <div
-                            className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/20"
+                            className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-[#E5DDD1]"
                             style={{ backgroundColor: entry.color }}
                           />
                           <div className="flex flex-col">
-                            <span className="font-semibold text-white">{entry.name}</span>
-                            <span className="text-white/60 text-[0.65rem]">
+                            <span className="font-medium text-[#010101]">{entry.name}</span>
+                            <span className="text-[#4F4F4E] text-[0.65rem]">
                               {formatUSD(entry.value)}
                             </span>
                           </div>
@@ -1159,25 +1159,25 @@ function CombinationCard({
 
               <div className="flex flex-col justify-center">
                 <div className="mb-4">
-                  <div className="text-sm font-semibold text-white mb-1">Total Cost</div>
-                  <div className="text-xs text-white/60">Monthly expenses summary</div>
+                  <div className="text-sm font-medium text-[#010101] mb-1">Total Cost</div>
+                  <div className="text-xs text-[#4F4F4E]">Monthly expenses summary</div>
                 </div>
-                <div className="bg-white/10 rounded-lg p-4 mb-4 border border-white/20">
-                  <div className="flex justify-between items-center mb-3 pb-3 border-b border-white/20">
-                    <span className="text-base font-semibold text-white/70">USD:</span>
-                    <span className="text-2xl font-extrabold text-white">
+                <div className="bg-[#F9F4EE]/80 rounded-lg p-4 mb-4 border border-[#E5DDD1]">
+                  <div className="flex justify-between items-center mb-3 pb-3 border-b border-[#E5DDD1]">
+                    <span className="text-base font-medium text-[#4F4F4E]">USD:</span>
+                    <span className="text-2xl font-semibold text-[#010101]">
                       {formatUSD(displayBreakdown.totalCostUSD)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-base font-semibold text-white/70">INR:</span>
-                    <span className="text-2xl font-extrabold text-white">
+                    <span className="text-base font-medium text-[#4F4F4E]">INR:</span>
+                    <span className="text-2xl font-semibold text-[#010101]">
                       {formatINR(displayBreakdown.totalCostINR)}
                     </span>
                   </div>
                 </div>
-                <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  <div className="text-xs font-semibold text-white mb-3 uppercase tracking-wider">
+                <div className="bg-[#F9F4EE]/50 rounded-lg p-4 border border-[#E5DDD1]">
+                  <div className="text-xs font-medium text-[#010101] mb-3 uppercase tracking-wider">
                     Component Breakdown
                   </div>
                   <div className="space-y-2 text-[0.7rem]">
@@ -1195,10 +1195,10 @@ function CombinationCard({
                     ].map(([label, value]) => (
                       <div
                         key={label as string}
-                        className="flex justify-between items-center py-1 border-b border-white/10 last:border-0"
+                        className="flex justify-between items-center py-1 border-b border-[#E5DDD1] last:border-0"
                       >
-                        <span className="text-white/70">{label}:</span>
-                        <span className="font-semibold text-white">
+                        <span className="text-[#4F4F4E]">{label}:</span>
+                        <span className="font-medium text-[#010101]">
                           {formatUSD(value as number)}
                         </span>
                       </div>

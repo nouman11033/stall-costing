@@ -119,7 +119,7 @@ export default function BudgetForm({
               <ImageIcon className="w-5 h-5 text-white" />
             </div>
             <h2
-              className="text-2xl font-bold text-[#010101]"
+              className="text-2xl font-medium text-[#010101]"
               style={{
                 fontFamily:
                   'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -134,7 +134,7 @@ export default function BudgetForm({
           <div className="space-y-4 flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                <label className="block text-xs font-medium text-[#010101] mb-1.5">
                   Images per Month
                 </label>
                 <input
@@ -147,7 +147,7 @@ export default function BudgetForm({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                <label className="block text-xs font-medium text-[#010101] mb-1.5">
                   3D Models per Month
                 </label>
                 <input
@@ -163,7 +163,7 @@ export default function BudgetForm({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                <label className="block text-xs font-medium text-[#010101] mb-1.5">
                   Image Retries (%)
                 </label>
                 <input
@@ -179,7 +179,7 @@ export default function BudgetForm({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+                <label className="block text-xs font-medium text-[#010101] mb-1.5">
                   3D Retries (%)
                 </label>
                 <input
@@ -197,7 +197,7 @@ export default function BudgetForm({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#010101] mb-1.5">
+              <label className="block text-xs font-medium text-[#010101] mb-1.5">
                 USD → INR Rate
               </label>
               <input
@@ -216,7 +216,7 @@ export default function BudgetForm({
             {/* Image Provider */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-[#010101]">Image Provider</label>
+                <label className="block text-xs font-medium text-[#010101]">Image Provider</label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -257,7 +257,7 @@ export default function BudgetForm({
             {/* 3D Provider */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-[#010101]">3D Provider</label>
+                <label className="block text-xs font-medium text-[#010101]">3D Provider</label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -297,11 +297,11 @@ export default function BudgetForm({
 
             {/* Storage — always R2 */}
             <div className="rounded-lg border border-[#E5DDD1] bg-[#F9F4EE] px-3 py-2.5">
-              <label className="block text-xs font-semibold text-[#010101] mb-1">
+              <label className="block text-xs font-medium text-[#010101] mb-1">
                 Asset Storage
               </label>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#010101] text-white">
+                <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#010101] text-white">
                   Cloudflare R2
                 </span>
                 <span className="text-[10px] text-[#4F4F4E]">

@@ -44,7 +44,7 @@ function AnimatedBackgroundText() {
         style={{ y: y1, opacity: opacity1 }}
       >
         <motion.h2
-          className="text-[15vw] lg:text-[20vw] font-black text-[#E5DDD1] select-none whitespace-nowrap"
+          className="text-[15vw] lg:text-[20vw] font-medium text-[#E5DDD1] select-none whitespace-nowrap"
           style={{
             fontFamily:
               'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -62,7 +62,7 @@ function AnimatedBackgroundText() {
         style={{ y: y2, opacity: opacity2 }}
       >
         <motion.h2
-          className="text-[12vw] lg:text-[18vw] font-black text-[#E5DDD1] select-none whitespace-nowrap"
+          className="text-[12vw] lg:text-[18vw] font-medium text-[#E5DDD1] select-none whitespace-nowrap"
           style={{
             fontFamily:
               'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -80,7 +80,7 @@ function AnimatedBackgroundText() {
         style={{ y: y3, opacity: opacity3 }}
       >
         <motion.h2
-          className="text-[14vw] lg:text-[19vw] font-black text-[#E5DDD1] select-none whitespace-nowrap"
+          className="text-[14vw] lg:text-[19vw] font-medium text-[#E5DDD1] select-none whitespace-nowrap"
           style={{
             fontFamily:
               'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -182,7 +182,7 @@ export default function Home() {
         {!isTransitioning && (
           <main className="relative z-50 min-h-screen flex flex-col items-center justify-center px-8 py-16">
             <motion.h1
-              className="text-7xl lg:text-6xl font-black text-[#010101] mb-20 tracking-tight text-center"
+              className="text-7xl lg:text-6xl font-semibold text-[#010101] mb-20 tracking-tight text-center"
               exit={{ x: -150, opacity: 0 }}
               transition={{ duration: 0.8, ease: [0.65, 0, 0.35, 1] }}
             >
@@ -220,7 +220,7 @@ export default function Home() {
                   if (form) form.requestSubmit();
                 }}
                 disabled={isCalculating}
-                className="w-full px-12 py-4 bg-[#010101] text-white rounded-xl font-semibold text-base hover:bg-[#1a1a1a] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-12 py-4 bg-[#010101] text-white rounded-xl font-medium text-base hover:bg-[#1a1a1a] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCalculating ? 'CALCULATING...' : 'GENERATE SET'}
               </button>
