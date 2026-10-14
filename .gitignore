@@ -37,10 +37,6 @@ next-env.d.ts
 # data collection
 /data/metrics
 
-# BMT live-caption temp jobs (API route)
-/.bmt-tmp
-
-# local Python / nested heavy repos (not for GitHub)
+# local Python
 .venv/
-/BMT/
 

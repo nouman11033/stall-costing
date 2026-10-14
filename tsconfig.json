@@ -24,6 +24,6 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "PokerNow-AI", "pokernow-bot", "old."]
+  "exclude": ["node_modules"]
 }
 

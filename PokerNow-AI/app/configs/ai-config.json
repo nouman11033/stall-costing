@@ -1,5 +1,0 @@
-{
-    "provider": "OpenAI",
-    "model_name": "gpt-4o-mini",
-    "playstyle": "neutral"
-}
