@@ -387,7 +387,8 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
               <h2
                 className="text-2xl font-bold text-[#010101]"
                 style={{
-                  fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  fontFamily:
+                    'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
                 }}
               >
                 Infra + LLM

@@ -171,7 +171,10 @@ export default function ResultsPage() {
               <div className="flex-1 px-6 first:pl-0">
                 <h3
                   className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
-                  style={{ fontFamily: 'Avenir' }}
+                  style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}
                 >
                   COMBINATIONS
                 </h3>
@@ -182,7 +185,10 @@ export default function ResultsPage() {
               <div className="flex-1 px-6">
                 <h3
                   className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
-                  style={{ fontFamily: 'Avenir' }}
+                  style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}
                 >
                   AVERAGE COST
                 </h3>
@@ -197,7 +203,10 @@ export default function ResultsPage() {
               <div className="flex-1 px-6">
                 <h3
                   className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
-                  style={{ fontFamily: 'Avenir' }}
+                  style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}
                 >
                   AI $/IMAGE
                 </h3>
@@ -209,7 +218,10 @@ export default function ResultsPage() {
               <div className="flex-1 px-6">
                 <h3
                   className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
-                  style={{ fontFamily: 'Avenir' }}
+                  style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}
                 >
                   AI $/3D MODEL
                 </h3>
@@ -221,7 +233,10 @@ export default function ResultsPage() {
               <div className="flex-1 px-6 last:pr-0">
                 <h3
                   className="text-sm font-bold text-[#010101]/60 tracking-wide mb-2"
-                  style={{ fontFamily: 'Avenir' }}
+                  style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}
                 >
                   COST RANGE
                 </h3>
@@ -283,7 +298,10 @@ function SlidersCard({
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 mb-6 shadow-sm border border-white/50">
       <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <h3 className="text-base font-bold text-[#010101] mb-4" style={{ fontFamily: 'Avenir' }}>
+          <h3 className="text-base font-bold text-[#010101] mb-4" style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}>
             Images per Month
           </h3>
           <div className="relative flex justify-between mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#4F4F4E]">
@@ -303,7 +321,10 @@ function SlidersCard({
           </div>
         </div>
         <div>
-          <h3 className="text-base font-bold text-[#010101] mb-4" style={{ fontFamily: 'Avenir' }}>
+          <h3 className="text-base font-bold text-[#010101] mb-4" style={{
+                    fontFamily:
+                      'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                  }}>
             3D Models per Month
           </h3>
           <div className="relative flex justify-between mb-1.5 text-xs font-semibold uppercase tracking-wider text-[#4F4F4E]">

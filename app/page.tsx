@@ -46,7 +46,8 @@ function AnimatedBackgroundText() {
         <motion.h2
           className="text-[15vw] lg:text-[20vw] font-black text-[#E5DDD1] select-none whitespace-nowrap"
           style={{
-            fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontFamily:
+              'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             letterSpacing: '0.02em',
           }}
           animate={{ x: [0, -100, 0] }}
@@ -63,7 +64,8 @@ function AnimatedBackgroundText() {
         <motion.h2
           className="text-[12vw] lg:text-[18vw] font-black text-[#E5DDD1] select-none whitespace-nowrap"
           style={{
-            fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontFamily:
+              'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             letterSpacing: '0.02em',
           }}
           animate={{ x: [0, 100, 0] }}
@@ -80,7 +82,8 @@ function AnimatedBackgroundText() {
         <motion.h2
           className="text-[14vw] lg:text-[19vw] font-black text-[#E5DDD1] select-none whitespace-nowrap"
           style={{
-            fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontFamily:
+              'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             letterSpacing: '0.02em',
           }}
           animate={{ x: [0, -80, 0] }}

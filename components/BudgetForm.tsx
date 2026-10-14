@@ -120,7 +120,10 @@ export default function BudgetForm({
             </div>
             <h2
               className="text-2xl font-bold text-[#010101]"
-              style={{ fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+              style={{
+                fontFamily:
+                  'Avenir, var(--font-app), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+              }}
             >
               Generation Workload
             </h2>
