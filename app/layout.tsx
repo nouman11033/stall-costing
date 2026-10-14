@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
-  title: "Cost Estimation - Avatar & Voice Solutions",
-  description: "Calculate optimal combinations for avatar and voice solutions based on your budget",
+  title: "Cost Estimation - AI Generation APIs",
+  description: "Calculate monthly Image + 3D generation API combinations with LLM and infrastructure costs",
 };
 
 export default function RootLayout({
@@ -12,14 +14,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Avenir:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body style={{ fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-        {children}
+        <ThemeProvider>
+          <ThemeToggle />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

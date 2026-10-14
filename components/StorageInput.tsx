@@ -1,1061 +1,563 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Layers, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { AvatarDerived } from '@/components/BudgetForm';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Server, SlidersHorizontal, X } from 'lucide-react';
+import type { BudgetInput } from '@/lib/calculator';
+import { defaultBudgetInput, deriveWorkloadDerived } from '@/lib/calculator';
+import type { WorkloadState } from '@/components/BudgetForm';
+import {
+  CHAT_VOLUME_PRESETS,
+  LLM_MODELS,
+  EMBEDDING_MODELS,
+  CHAT_TOKEN_BUDGET,
+  DEFAULT_CHAT_VOLUME_PRESET_ID,
+  tokensFromChatVolumePreset,
+  getChatVolumePresetById,
+  getEmbeddingModelById,
+  type ChatVolumePresetId,
+} from '@/lib/pricing';
 
-export interface StorageInput {
-  totalSizeGB: number;
-  tierAllocation: {
-    hot: number; // in GB
-    cold: number; // in GB
-    archive: number; // in GB
-  };
-  numberOfDatabases: number;
-  // Storage provider selection
-  storageProviders: ('AWS' | 'Azure')[];
-  // AWS Additional Cost Parameters
-  aws?: {
-    hot?: {
-      dataTransferOut?: number; // GB
-      putRequests?: number;
-      getRequests?: number;
-    };
-    cold?: {
-      dataTransferOut?: number; // GB
-      putRequests?: number;
-      getRequests?: number;
-      dataRetrieved?: number; // GB
-    };
-    archive?: {
-      dataTransferOut?: number; // GB
-      putRequests?: number;
-      getRequests?: number;
-      dataRetrieved?: number; // GB
-      retrievalType?: 'Standard' | 'Expedited';
-      retrievalRequests?: number;
-    };
-  };
-  // Azure Additional Cost Parameters
-  azure?: {
-    hot?: {
-      dataTransferOut?: number; // GB
-      readOperations?: number; // per 10,000
-      writeOperations?: number; // per 10,000
-      queryDataScanned?: number; // GB
-      queryDataReturned?: number; // GB
-      iterativeReadOps?: number; // per 10,000
-      iterativeWriteOps?: number; // per 100
-      otherOperations?: number; // per 10,000
-    };
-    cold?: {
-      dataTransferOut?: number; // GB
-      readOperations?: number; // per 10,000
-      writeOperations?: number; // per 10,000
-      queryDataScanned?: number; // GB
-      queryDataReturned?: number; // GB
-      iterativeWriteOps?: number; // per 100
-      dataRetrieved?: number; // GB
-    };
-    archive?: {
-      dataTransferOut?: number; // GB
-      readOperations?: number;
-      writeOperations?: number;
-      highPriorityRead?: number; // per 100
-      highPriorityRetrieval?: number; // GB
-      iterativeWriteOps?: number; // per 100
-      dataRetrieved?: number; // GB
-    };
+export type InfraInput = Pick<
+  BudgetInput,
+  | 'llmInputTokens'
+  | 'llmInputPricePer1M'
+  | 'llmOutputTokens'
+  | 'llmOutputPricePer1M'
+  | 'embeddingTokens'
+  | 'embeddingPricePer1M'
+  | 'vercelMonthlyUSD'
+  | 'supabaseMonthlyUSD'
+  | 'r2StorageGB'
+  | 'r2PricePerGBUSD'
+  | 'r2RequestsUSD'
+  | 'workerMonthlyUSD'
+  | 'monitoringMonthlyUSD'
+  | 'embeddingModelId'
+  | 'selectedLlmModelIds'
+  | 'chatVolumePresetId'
+  | 'llmTokensManualEdit'
+>;
+
+type AutoField = 'r2StorageGB' | 'r2RequestsUSD';
+
+export function defaultInfraInput(): InfraInput {
+  const d = defaultBudgetInput();
+  return {
+    llmInputTokens: d.llmInputTokens,
+    llmInputPricePer1M: d.llmInputPricePer1M,
+    llmOutputTokens: d.llmOutputTokens,
+    llmOutputPricePer1M: d.llmOutputPricePer1M,
+    embeddingTokens: d.embeddingTokens,
+    embeddingPricePer1M: d.embeddingPricePer1M,
+    vercelMonthlyUSD: d.vercelMonthlyUSD,
+    supabaseMonthlyUSD: d.supabaseMonthlyUSD,
+    r2StorageGB: d.r2StorageGB,
+    r2PricePerGBUSD: d.r2PricePerGBUSD,
+    r2RequestsUSD: d.r2RequestsUSD,
+    workerMonthlyUSD: d.workerMonthlyUSD,
+    monitoringMonthlyUSD: d.monitoringMonthlyUSD,
+    embeddingModelId: d.embeddingModelId,
+    selectedLlmModelIds: d.selectedLlmModelIds,
+    chatVolumePresetId: d.chatVolumePresetId,
+    llmTokensManualEdit: d.llmTokensManualEdit,
   };
 }
 
 interface StorageInputProps {
-  storageInput: StorageInput;
-  onChange: (input: StorageInput) => void;
-  avatarDerived?: AvatarDerived | null;
+  infraInput: InfraInput;
+  onChange: (input: InfraInput) => void;
+  workload: WorkloadState;
 }
 
-// Format number to short form for display (e.g. 1000 -> 1K, 1000000 -> 1M)
-function formatMinutes(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-  return num.toString();
+function Field({
+  label,
+  value,
+  onChange,
+  step = 1,
+  hint,
+  disabled,
+  isAuto,
+  onReset,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  step?: number;
+  hint?: string;
+  disabled?: boolean;
+  isAuto?: boolean;
+  onReset?: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5 gap-2">
+        <label className="block text-xs font-semibold text-[#010101]">{label}</label>
+        {isAuto !== undefined && (
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={isAuto}
+            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-all ${
+              isAuto
+                ? 'bg-[#010101] text-white border-[#010101] cursor-default'
+                : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+            }`}
+            title={isAuto ? 'Auto from workload' : 'Reset to auto'}
+          >
+            {isAuto ? 'Auto' : 'Reset'}
+          </button>
+        )}
+      </div>
+      <input
+        type="number"
+        value={value}
+        step={step}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`show-spinner w-full px-3 py-2 border rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101] ${
+          disabled
+            ? 'bg-[#E5DDD1]/60 border-[#D4CCC0] cursor-not-allowed opacity-80'
+            : 'bg-[#F9F4EE] border-[#E5DDD1]'
+        }`}
+        min="0"
+      />
+      {hint && <p className="text-[10px] text-[#4F4F4E] mt-0.5">{hint}</p>}
+    </div>
+  );
 }
 
-// Compute AWS/Azure param values from total monthly minutes (placeholder formulas)
-function paramsFromTotalMinutes(totalMinutes: number): Partial<StorageInput> {
-  const m = totalMinutes;
-  return {
-    aws: {
-      hot: {
-        putRequests: Math.round(m * 0.1),
-        getRequests: Math.round(m * 0.2),
-      },
-      cold: {
-        putRequests: Math.round(m * 0.05),
-        getRequests: Math.round(m * 0.1),
-        dataRetrieved: Math.round(m * 0.01),
-      },
-      archive: {
-        putRequests: Math.round(m * 0.02),
-        getRequests: Math.round(m * 0.02),
-        dataRetrieved: Math.round(m * 0.005),
-        retrievalType: 'Standard',
-        retrievalRequests: Math.round(m * 0.001),
-      },
-    },
-    azure: {
-      hot: {
-        readOperations: Math.round(m * 0.2 / 10000) * 10000,
-        writeOperations: Math.round(m * 0.1 / 10000) * 10000,
-        queryDataScanned: Math.round(m * 0.01),
-        queryDataReturned: Math.round(m * 0.005),
-        iterativeReadOps: Math.round(m * 0.05 / 10000) * 10000,
-        iterativeWriteOps: Math.round(m * 0.02 / 100) * 100,
-        otherOperations: Math.round(m * 0.03 / 10000) * 10000,
-      },
-      cold: {
-        readOperations: Math.round(m * 0.1 / 10000) * 10000,
-        writeOperations: Math.round(m * 0.05 / 10000) * 10000,
-        queryDataScanned: Math.round(m * 0.005),
-        queryDataReturned: Math.round(m * 0.002),
-        iterativeWriteOps: Math.round(m * 0.01 / 100) * 100,
-        dataRetrieved: Math.round(m * 0.01),
-      },
-      archive: {
-        readOperations: Math.round(m * 0.02),
-        writeOperations: Math.round(m * 0.01),
-        highPriorityRead: Math.round(m * 0.001 / 100) * 100,
-        highPriorityRetrieval: Math.round(m * 0.002),
-        iterativeWriteOps: Math.round(m * 0.005 / 100) * 100,
-        dataRetrieved: Math.round(m * 0.005),
-      },
-    },
-  };
-}
+export default function StorageInput({ infraInput, onChange, workload }: StorageInputProps) {
+  const [overrides, setOverrides] = useState<Set<AutoField>>(new Set());
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const lastDerivedKey = useRef('');
 
-export default function StorageInput({ storageInput, onChange, avatarDerived }: StorageInputProps) {
-  const maxSizeGB = 500 * 1024; // 500 TB in GB
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
-  const [activeProvider, setActiveProvider] = useState<'AWS' | 'Azure'>('AWS');
-  const [activeTierTab, setActiveTierTab] = useState<'Hot' | 'Cold' | 'Archive'>('Hot');
-  const minMinutes = avatarDerived?.minMinutesPerMonth ?? 0;
-  const maxMinutes = avatarDerived?.maxMinutesPerMonth ?? 100000;
-  const defaultSliderMinutes = minMinutes > 0 || maxMinutes > 0 ? Math.round((minMinutes + maxMinutes) / 2) : 50000;
-  const [sliderTotalMinutes, setSliderTotalMinutes] = useState(defaultSliderMinutes);
+  const presetId = infraInput.chatVolumePresetId || DEFAULT_CHAT_VOLUME_PRESET_ID;
+  const preset = getChatVolumePresetById(presetId);
+  const manualEdit = !!infraInput.llmTokensManualEdit;
+  const selectedLlms = infraInput.selectedLlmModelIds || LLM_MODELS.map((m) => m.id);
 
-  const selectedProviders = storageInput.storageProviders || ['AWS', 'Azure'];
-  const hasBothProviders = selectedProviders.length === 2;
-  const hasOneProvider = selectedProviders.length === 1;
+  const derived = useMemo(
+    () =>
+      deriveWorkloadDerived({
+        imagesPerMonth: workload.imagesPerMonth,
+        modelsPerMonth: workload.modelsPerMonth,
+        imageRetryFraction: workload.imageRetryFraction,
+        modelRetryFraction: workload.modelRetryFraction,
+      }),
+    [
+      workload.imagesPerMonth,
+      workload.modelsPerMonth,
+      workload.imageRetryFraction,
+      workload.modelRetryFraction,
+    ]
+  );
 
-  const totalAllocated = storageInput.tierAllocation.hot + storageInput.tierAllocation.cold + storageInput.tierAllocation.archive;
-  const percentages = {
-    hot: storageInput.totalSizeGB > 0 ? (storageInput.tierAllocation.hot / storageInput.totalSizeGB) * 100 : 0,
-    cold: storageInput.totalSizeGB > 0 ? (storageInput.tierAllocation.cold / storageInput.totalSizeGB) * 100 : 0,
-    archive: storageInput.totalSizeGB > 0 ? (storageInput.tierAllocation.archive / storageInput.totalSizeGB) * 100 : 0,
-  };
-  const totalPercentage = percentages.hot + percentages.cold + percentages.archive;
+  useEffect(() => {
+    const key = `${derived.assetStorageGB}|${derived.r2RequestsUSD}`;
+    if (key === lastDerivedKey.current) return;
+    lastDerivedKey.current = key;
 
-  const handlePercentageChange = (tier: keyof typeof storageInput.tierAllocation, percentage: number) => {
-    const newPercentage = Math.max(0, Math.min(100, percentage));
-    const currentPercentages = { ...percentages };
-    const diff = newPercentage - currentPercentages[tier];
-    const currentTotal = currentPercentages.hot + currentPercentages.cold + currentPercentages.archive;
-    
-    if (currentTotal + diff > 100) {
-      const excess = currentTotal + diff - 100;
-      const otherTiers: (keyof typeof storageInput.tierAllocation)[] = ['hot', 'cold', 'archive'].filter(
-        t => t !== tier
-      ) as (keyof typeof storageInput.tierAllocation)[];
-      const otherTotal = otherTiers.reduce((sum, t) => sum + currentPercentages[t], 0);
-      
-      otherTiers.forEach(t => {
-        if (otherTotal > 0) {
-          currentPercentages[t] = Math.max(0, currentPercentages[t] - (excess * currentPercentages[t] / otherTotal));
-        }
-      });
+    const next = { ...infraInput };
+    if (!overrides.has('r2StorageGB')) next.r2StorageGB = derived.assetStorageGB;
+    if (!overrides.has('r2RequestsUSD')) next.r2RequestsUSD = derived.r2RequestsUSD;
+    onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [derived, overrides]);
+
+  const setManual = <K extends keyof InfraInput>(key: K, value: InfraInput[K]) => {
+    if (key === 'r2StorageGB' || key === 'r2RequestsUSD') {
+      setOverrides((prev) => new Set(prev).add(key as AutoField));
     }
-    
-    currentPercentages[tier] = newPercentage;
-    const newAllocation = {
-      hot: (currentPercentages.hot / 100) * storageInput.totalSizeGB,
-      cold: (currentPercentages.cold / 100) * storageInput.totalSizeGB,
-      archive: (currentPercentages.archive / 100) * storageInput.totalSizeGB,
+    onChange({ ...infraInput, [key]: value });
+  };
+
+  const resetField = (field: AutoField) => {
+    setOverrides((prev) => {
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+    const map: Record<AutoField, number> = {
+      r2StorageGB: derived.assetStorageGB,
+      r2RequestsUSD: derived.r2RequestsUSD,
     };
-    
+    onChange({ ...infraInput, [field]: map[field] });
+  };
+
+  const isAuto = (field: AutoField) => !overrides.has(field);
+
+  const applyChatVolume = (id: ChatVolumePresetId) => {
+    const tokens = tokensFromChatVolumePreset(id);
     onChange({
-      ...storageInput,
-      tierAllocation: newAllocation,
+      ...infraInput,
+      chatVolumePresetId: id,
+      llmTokensManualEdit: false,
+      llmInputTokens: tokens.llmInputTokens,
+      llmOutputTokens: tokens.llmOutputTokens,
+      embeddingTokens: tokens.embeddingTokens,
     });
   };
 
-  const toggleProvider = (provider: 'AWS' | 'Azure') => {
-    const providers = storageInput.storageProviders || [];
-    const newProviders = providers.includes(provider)
-      ? providers.filter(p => p !== provider)
-      : [...providers, provider];
-    onChange({ ...storageInput, storageProviders: newProviders.length > 0 ? newProviders : [provider] });
-  };
-
-  const updateAdditionalCost = (provider: 'AWS' | 'Azure', tier: 'hot' | 'cold' | 'archive', field: string, value: number | string) => {
-    const updated = { ...storageInput };
-    if (!updated[provider.toLowerCase() as 'aws' | 'azure']) {
-      updated[provider.toLowerCase() as 'aws' | 'azure'] = {};
+  const toggleManualEdit = () => {
+    if (manualEdit) {
+      const tokens = tokensFromChatVolumePreset(presetId);
+      onChange({
+        ...infraInput,
+        llmTokensManualEdit: false,
+        llmInputTokens: tokens.llmInputTokens,
+        llmOutputTokens: tokens.llmOutputTokens,
+        embeddingTokens: tokens.embeddingTokens,
+      });
+    } else {
+      onChange({ ...infraInput, llmTokensManualEdit: true });
+      setDrawerOpen(true);
     }
-    const providerData = updated[provider.toLowerCase() as 'aws' | 'azure'] as any;
-    if (!providerData[tier]) {
-      providerData[tier] = {};
+  };
+
+  const toggleLlm = (id: string) => {
+    if (selectedLlms.includes(id)) {
+      if (selectedLlms.length === 1) return;
+      setManual(
+        'selectedLlmModelIds',
+        selectedLlms.filter((x) => x !== id)
+      );
+    } else {
+      setManual('selectedLlmModelIds', [...selectedLlms, id]);
     }
-    providerData[tier][field] = value;
-    onChange(updated);
   };
 
-  const getAdditionalCostValue = (provider: 'AWS' | 'Azure', tier: 'hot' | 'cold' | 'archive', field: string): number | string => {
-    const providerData = storageInput[provider.toLowerCase() as 'aws' | 'azure'];
-    if (!providerData || !providerData[tier]) return 0;
-    return (providerData[tier] as any)[field] ?? 0;
+  const toggleAllLlms = () => {
+    if (selectedLlms.length === LLM_MODELS.length) {
+      setManual('selectedLlmModelIds', [LLM_MODELS[0].id]);
+    } else {
+      setManual(
+        'selectedLlmModelIds',
+        LLM_MODELS.map((m) => m.id)
+      );
+    }
   };
 
-  const handleSliderMinutesChange = useCallback((totalMinutes: number) => {
-    setSliderTotalMinutes(totalMinutes);
-    const derived = paramsFromTotalMinutes(totalMinutes);
+  const setEmbedding = (id: string) => {
+    const emb = getEmbeddingModelById(id);
     onChange({
-      ...storageInput,
-      ...derived,
+      ...infraInput,
+      embeddingModelId: emb.id,
+      embeddingPricePer1M: emb.pricePer1MUSD,
     });
-  }, [storageInput, onChange]);
-
-  const handleNext = () => {
-    if (selectedProviders.length > 0) {
-      if (hasOneProvider) {
-        setActiveProvider(selectedProviders[0] as 'AWS' | 'Azure');
-      }
-      const min = avatarDerived?.minMinutesPerMonth ?? 0;
-      const max = avatarDerived?.maxMinutesPerMonth ?? 100000;
-      const mid = (min > 0 || max > 0) ? Math.round((min + max) / 2) : 50000;
-      setSliderTotalMinutes(mid);
-      onChange({ ...storageInput, ...paramsFromTotalMinutes(mid) });
-      setCurrentStep(2);
-    }
   };
 
-  const handleBack = () => {
-    setCurrentStep(1);
-  };
+  const tokenBudgetLabel = `${(CHAT_TOKEN_BUDGET.totalTokens / 1_000_000).toFixed(1)}M tokens`;
+  const fixedInfraTotal =
+    infraInput.vercelMonthlyUSD +
+    infraInput.supabaseMonthlyUSD +
+    infraInput.workerMonthlyUSD +
+    infraInput.monitoringMonthlyUSD;
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-[#E5DDD1] overflow-hidden hover:shadow-md transition-all duration-300 hover:border-[#010101] flex flex-col h-[600px]">
-      {/* Header */}
-      <div className="bg-white border-b border-[#E5DDD1] p-6 flex-shrink-0">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 bg-[#010101] rounded-xl flex items-center justify-center">
-            <Layers className="w-5 h-5 text-white" />
+    <div className="h-full relative">
+      <div className="relative flex h-[740px] flex-col overflow-hidden rounded-2xl border border-[#E5DDD1] bg-white/80 shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-[#010101] hover:shadow-md">
+        {/* Left drawer — Token Budget + Fixed Infra */}
+        <div
+          className={`absolute inset-y-0 left-0 z-30 flex w-[min(100%,320px)] flex-col border-r border-[#E5DDD1] bg-white shadow-xl transition-transform duration-300 ease-out ${
+            drawerOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          aria-hidden={!drawerOpen}
+        >
+          <div className="flex items-center justify-between border-b border-[#E5DDD1] px-4 py-3 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-[#010101]" />
+              <span className="text-sm font-bold text-[#010101]">Budget & Infra</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              className="p-1.5 rounded-lg border border-[#E5DDD1] hover:border-[#010101] transition-colors"
+              aria-label="Close drawer"
+            >
+              <X className="w-4 h-4 text-[#010101]" />
+            </button>
           </div>
-          <h2 
-            className="text-2xl font-bold text-[#010101]"
-            style={{ fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-2">
+                Token Budget {manualEdit ? '(editable)' : '(from chat volume)'}
+              </p>
+              <p className="text-[10px] text-[#4F4F4E] mb-3">
+                Updates when you pick Short / Normal / Detailed / Very long
+                {manualEdit ? ' — unlocked for override' : ''}.
+              </p>
+              <div className="grid grid-cols-1 gap-3">
+                <Field
+                  label="LLM Input Tokens / mo"
+                  value={infraInput.llmInputTokens}
+                  onChange={(n) => setManual('llmInputTokens', n)}
+                  disabled={!manualEdit}
+                  hint={manualEdit ? 'Manual override' : 'Auto from chat volume'}
+                />
+                <Field
+                  label="LLM Output Tokens / mo"
+                  value={infraInput.llmOutputTokens}
+                  onChange={(n) => setManual('llmOutputTokens', n)}
+                  disabled={!manualEdit}
+                />
+                <Field
+                  label="Embedding Tokens / mo"
+                  value={infraInput.embeddingTokens}
+                  onChange={(n) => setManual('embeddingTokens', n)}
+                  disabled={!manualEdit}
+                />
+                <Field
+                  label="Embedding $/1M"
+                  value={infraInput.embeddingPricePer1M}
+                  onChange={(n) => setManual('embeddingPricePer1M', n)}
+                  step={0.01}
+                  hint="Set by embedding model"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-[#E5DDD1] pt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-2">
+                Fixed infra (USD / mo)
+              </p>
+              <p className="text-[10px] text-[#4F4F4E] mb-3">Same on every combo · R2 holds 2D/3D</p>
+              <div className="grid grid-cols-1 gap-3">
+                <Field
+                  label="Vercel"
+                  value={infraInput.vercelMonthlyUSD}
+                  onChange={(n) => setManual('vercelMonthlyUSD', n)}
+                />
+                <Field
+                  label="Supabase Pro"
+                  value={infraInput.supabaseMonthlyUSD}
+                  onChange={(n) => setManual('supabaseMonthlyUSD', n)}
+                />
+                <Field
+                  label="Asset Storage (GB)"
+                  value={infraInput.r2StorageGB}
+                  onChange={(n) => setManual('r2StorageGB', n)}
+                  isAuto={isAuto('r2StorageGB')}
+                  onReset={() => resetField('r2StorageGB')}
+                  hint="All asset GB billed on Cloudflare R2"
+                />
+                <Field
+                  label="R2 $/GB-month"
+                  value={infraInput.r2PricePerGBUSD}
+                  onChange={(n) => setManual('r2PricePerGBUSD', n)}
+                  step={0.001}
+                />
+                <Field
+                  label="R2 Requests $"
+                  value={infraInput.r2RequestsUSD}
+                  onChange={(n) => setManual('r2RequestsUSD', n)}
+                  isAuto={isAuto('r2RequestsUSD')}
+                  onReset={() => resetField('r2RequestsUSD')}
+                />
+                <Field
+                  label="Worker / Queue $"
+                  value={infraInput.workerMonthlyUSD}
+                  onChange={(n) => setManual('workerMonthlyUSD', n)}
+                />
+                <Field
+                  label="Monitoring / Email $"
+                  value={infraInput.monitoringMonthlyUSD}
+                  onChange={(n) => setManual('monitoringMonthlyUSD', n)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {drawerOpen && (
+          <button
+            type="button"
+            className="absolute inset-0 z-20 bg-black/10"
+            aria-label="Close drawer overlay"
+            onClick={() => setDrawerOpen(false)}
+          />
+        )}
+
+        <div className="bg-white border-b border-[#E5DDD1] p-6 flex-shrink-0 relative z-10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-[#010101] rounded-xl flex items-center justify-center">
+              <Server className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2
+                className="text-2xl font-bold text-[#010101]"
+                style={{
+                  fontFamily: 'Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                }}
+              >
+                Infra + LLM
+              </h2>
+              <p className="text-[10px] text-[#4F4F4E] mt-0.5">
+                Chat volume presets · LLM is a combination axis
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 pb-20 flex-1 overflow-hidden relative z-10">
+          <div className="space-y-4">
+            {/* Chat volume */}
+            <div>
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E]">
+                  Chat Volume
+                </p>
+                <button
+                  type="button"
+                  onClick={toggleManualEdit}
+                  className={`text-[10px] font-semibold px-2 py-1 rounded-md border transition-all ${
+                    manualEdit
+                      ? 'bg-[#010101] text-white border-[#010101]'
+                      : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                  }`}
+                >
+                  {manualEdit ? 'Using Manual Edit' : 'Manual Edit'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {CHAT_VOLUME_PRESETS.map((p) => {
+                  const active = presetId === p.id && !manualEdit;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => applyChatVolume(p.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                        active
+                          ? 'bg-[#010101] text-white border-[#010101]'
+                          : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                      }`}
+                    >
+                      {p.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rounded-lg border border-[#E5DDD1] bg-[#F9F4EE] px-3 py-2 text-[10px] text-[#4F4F4E] space-y-0.5">
+                <div className="flex justify-between">
+                  <span>Preset</span>
+                  <span className="font-semibold text-[#010101]">
+                    {manualEdit ? 'Manual' : preset.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Est. chats / mo</span>
+                  <span className="font-semibold text-[#010101]">
+                    {preset.estimatedChats.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Words / chat</span>
+                  <span className="font-semibold text-[#010101]">
+                    ~{preset.totalWordsPerChat.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-[#E5DDD1] mt-1">
+                  <span>Token budget</span>
+                  <span className="font-semibold text-[#010101]">{tokenBudgetLabel}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* LLM combination axis */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E]">
+                  LLM Models (combination)
+                </p>
+                <button
+                  type="button"
+                  onClick={toggleAllLlms}
+                  className="text-[10px] font-semibold text-[#010101] underline"
+                >
+                  {selectedLlms.length === LLM_MODELS.length ? 'Clear to one' : 'Select all'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {LLM_MODELS.map((m) => {
+                  const active = selectedLlms.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleLlm(m.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                        active
+                          ? 'bg-[#010101] text-white border-[#010101]'
+                          : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                      }`}
+                      title={`${m.provider} · $${m.inputPer1MUSD}/$${m.outputPer1MUSD} per 1M`}
+                    >
+                      {m.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-[#4F4F4E] mt-1.5">
+                Each selected model becomes its own combo with Image × 3D × R2
+              </p>
+            </div>
+
+            {/* Embedding */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4F4F4E] mb-2">
+                Embedding Model
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {EMBEDDING_MODELS.map((m) => {
+                  const active = (infraInput.embeddingModelId || EMBEDDING_MODELS[0].id) === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setEmbedding(m.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                        active
+                          ? 'bg-[#010101] text-white border-[#010101]'
+                          : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
+                      }`}
+                    >
+                      {m.name} · ${m.pricePer1MUSD}/1M
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Bottom-left Budget button — opens drawer from the left */}
+        <div className="absolute bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-3 border-t border-[#E5DDD1] bg-white/95 px-4 py-3 backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen((o) => !o)}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-md transition-all ${
+              drawerOpen
+                ? 'bg-[#1a1a1a] text-white border border-[#010101]'
+                : 'bg-[#010101] text-white hover:bg-[#1a1a1a]'
+            }`}
+            title={drawerOpen ? 'Close budget drawer' : 'Open budget drawer from the left'}
           >
-            Data Storage
-          </h2>
+            {drawerOpen ? (
+              <ChevronLeft className="w-4 h-4" />
+            ) : (
+              <SlidersHorizontal className="w-4 h-4" />
+            )}
+            Budget
+            {!drawerOpen && <ChevronRight className="w-3.5 h-3.5 opacity-80" />}
+          </button>
+          <p className="text-[10px] text-[#4F4F4E] text-right leading-snug max-w-[55%]">
+            {tokenBudgetLabel} · fixed ~${fixedInfraTotal.toFixed(0)}/mo + R2
+            <span className="block text-[#4F4F4E]/80">Opens from the left</span>
+          </p>
         </div>
       </div>
-
-      {/* Content - Step 1: Basic Info + Provider Selection */}
-      {currentStep === 1 && (
-        <div className="p-6 flex-1 flex flex-col">
-          <div className="space-y-4 flex-1">
-            {/* Number Inputs */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
-                  Number of Databases
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="75"
-            value={storageInput.numberOfDatabases}
-            onChange={(e) => {
-              const value = parseInt(e.target.value) || 1;
-              onChange({
-                ...storageInput,
-                numberOfDatabases: Math.max(1, Math.min(75, value)),
-              });
-            }}
-            className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-            placeholder="0"
-            required
-          />
-        </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#010101] mb-1.5">
-                  Storage Size per Database (GB)
-          </label>
-          <input
-            type="number"
-            min="0"
-            max={maxSizeGB}
-            step="1"
-            value={storageInput.totalSizeGB}
-            onChange={(e) => {
-              const newSize = parseFloat(e.target.value) || 0;
-              if (newSize <= maxSizeGB) {
-                const scale = storageInput.totalSizeGB > 0 ? newSize / storageInput.totalSizeGB : 1;
-                onChange({
-                  ...storageInput,
-                  totalSizeGB: newSize,
-                  tierAllocation: {
-                    hot: storageInput.tierAllocation.hot * scale,
-                    cold: storageInput.tierAllocation.cold * scale,
-                    archive: storageInput.tierAllocation.archive * scale,
-                  },
-                });
-              }
-            }}
-            className="show-spinner w-full px-3 py-2 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-sm text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-            placeholder="0"
-            required
-          />
-              </div>
-            </div>
-
-            {/* Storage Provider Selection */}
-            <div>
-              <label className="block text-xs font-semibold text-[#010101] mb-2">
-                Storage Provider
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleProvider('AWS')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                    selectedProviders.includes('AWS')
-                      ? 'bg-[#010101] text-white border-[#010101]'
-                      : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
-                  }`}
-                >
-                  AWS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleProvider('Azure')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                    selectedProviders.includes('Azure')
-                      ? 'bg-[#010101] text-white border-[#010101]'
-                      : 'bg-[#F9F4EE] text-[#010101] border-[#E5DDD1] hover:border-[#010101]'
-                  }`}
-                >
-                  Azure
-                </button>
-              </div>
-        </div>
-
-        {/* Tier Allocation */}
-            <div className="pt-1">
-              <h3 className="text-xs font-semibold text-[#010101] mb-2">Tier Allocation</h3>
-              
-              {/* Hot / S3 Standard */}
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-[#010101]">
-                    Hot / S3 Standard
-          </label>
-                  <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                      value={Math.round(percentages.hot)}
-                      onChange={(e) => handlePercentageChange('hot', parseFloat(e.target.value))}
-                      className="w-14 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                      min="0"
-                      max="100"
-                    />
-                    <span className="text-xs font-medium text-[#010101]">%</span>
-                  </div>
-                </div>
-                <div 
-                  className="tier-slider-container relative"
-                  style={{
-                    '--slider-progress': `${percentages.hot}%`
-                  } as React.CSSProperties}
-                >
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={percentages.hot}
-                    onChange={(e) => handlePercentageChange('hot', parseFloat(e.target.value))}
-                    className="tier-slider w-full appearance-none cursor-pointer relative z-10"
-                    style={{
-                      background: 'transparent',
-                      height: '6px'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Cold / S3 Standard - IA */}
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-[#010101]">
-                    Cold / S3 Standard - IA
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                      value={Math.round(percentages.cold)}
-                      onChange={(e) => handlePercentageChange('cold', parseFloat(e.target.value))}
-                      className="w-14 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                    min="0"
-                      max="100"
-                    />
-                    <span className="text-xs font-medium text-[#010101]">%</span>
-                  </div>
-                </div>
-                <div 
-                  className="tier-slider-container relative"
-                  style={{
-                    '--slider-progress': `${percentages.cold}%`
-                  } as React.CSSProperties}
-                >
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={percentages.cold}
-                    onChange={(e) => handlePercentageChange('cold', parseFloat(e.target.value))}
-                    className="tier-slider w-full appearance-none cursor-pointer relative z-10"
-                    style={{
-                      background: 'transparent',
-                      height: '6px'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Archive / S3 Glacier Flexible Retrieval */}
-              <div className="mb-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-[#010101]">
-                    Archive / S3 Glacier Flexible Retrieval
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      value={Math.round(percentages.archive)}
-                      onChange={(e) => handlePercentageChange('archive', parseFloat(e.target.value))}
-                      className="w-14 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                      min="0"
-                      max="100"
-                    />
-                    <span className="text-xs font-medium text-[#010101]">%</span>
-                </div>
-              </div>
-              <div 
-                className="tier-slider-container relative"
-                style={{
-                  '--slider-progress': `${percentages.archive}%`
-                } as React.CSSProperties}
-              >
-              <input
-                type="range"
-                min="0"
-                max="100"
-                  step="1"
-                  value={percentages.archive}
-                  onChange={(e) => handlePercentageChange('archive', parseFloat(e.target.value))}
-                  className="tier-slider w-full appearance-none cursor-pointer relative z-10"
-                style={{
-                    background: 'transparent',
-                    height: '6px'
-                  }}
-                />
-              </div>
-              </div>
-
-              {/* Total Percentage Indicator */}
-              <div className="flex justify-end mt-1">
-                <span className={`text-xs font-semibold ${
-                  Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  Total: {totalPercentage.toFixed(1)}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Next Button */}
-          <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={selectedProviders.length === 0}
-              className="px-6 py-2 bg-[#010101] text-white rounded-lg text-xs font-semibold hover:bg-[#1a1a1a] transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Content - Step 2: Additional Costs */}
-      {currentStep === 2 && (
-        <div className="p-6 flex-1 flex flex-col">
-          <div className="space-y-4 flex-1">
-            {/* Total number of minutes slider – drives param numbers */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-[#010101]">
-                  Total number of minutes
-                </label>
-                <span className="text-xs font-semibold text-[#010101]">
-                  {formatMinutes(sliderTotalMinutes)}
-                </span>
-              </div>
-              <div
-                className="tier-slider-container relative"
-                style={{ '--slider-progress': `${maxMinutes > minMinutes ? ((sliderTotalMinutes - minMinutes) / (maxMinutes - minMinutes)) * 100 : 0}%` } as React.CSSProperties}
-              >
-                <input
-                  type="range"
-                  min={minMinutes}
-                  max={Math.max(maxMinutes, minMinutes + 1)}
-                  step={Math.max(1, Math.floor((maxMinutes - minMinutes) / 500))}
-                  value={sliderTotalMinutes}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setSliderTotalMinutes(v);
-                    handleSliderMinutesChange(v);
-                  }}
-                  className="tier-slider w-full appearance-none cursor-pointer relative z-10"
-                  style={{ background: 'transparent', height: '6px' }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-[#4F4F4E] mt-1">
-                <span>{formatMinutes(minMinutes)}</span>
-                <span>{formatMinutes(maxMinutes)}</span>
-              </div>
-            </div>
-
-            {/* Provider Toggle (only if both selected) */}
-            {hasBothProviders && (
-              <div className="relative mb-4">
-                {/* Line Separator */}
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-[#E5DDD1]"></div>
-                </div>
-                {/* Toggle Buttons */}
-                <div className="relative flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setActiveProvider('AWS')}
-                    className={`px-6 py-2 bg-white text-xs font-semibold transition-all border-t-2 ${
-                      activeProvider === 'AWS'
-                        ? 'text-[#010101] border-[#010101]'
-                        : 'text-[#4F4F4E] border-transparent hover:text-[#010101]'
-                    }`}
-                  >
-                    AWS
-                  </button>
-                  <div className="w-px h-6 bg-[#E5DDD1]"></div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveProvider('Azure')}
-                    className={`px-6 py-2 bg-white text-xs font-semibold transition-all border-t-2 ${
-                      activeProvider === 'Azure'
-                        ? 'text-[#010101] border-[#010101]'
-                        : 'text-[#4F4F4E] border-transparent hover:text-[#010101]'
-                    }`}
-                  >
-                    Azure
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Tier Allocation Reference */}
-            <div className="bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg p-3 mb-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#010101]">Tier Allocation Reference:</span>
-                <div className="flex items-center gap-4 text-[#4F4F4E]">
-                  <span>Hot: <span className="font-semibold text-[#010101]">{Math.round(percentages.hot)}%</span></span>
-                  <span>Cold: <span className="font-semibold text-[#010101]">{Math.round(percentages.cold)}%</span></span>
-                  <span>Archive: <span className="font-semibold text-[#010101]">{Math.round(percentages.archive)}%</span></span>
-                </div>
-              </div>
-            </div>
-
-            {/* Tier Tabs */}
-            <div className="flex gap-2 mb-3">
-              {activeProvider === 'AWS' ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTierTab('Hot')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeTierTab === 'Hot'
-                        ? 'bg-[#010101] text-white'
-                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
-                    }`}
-                  >
-                    S3 Standard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTierTab('Cold')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeTierTab === 'Cold'
-                        ? 'bg-[#010101] text-white'
-                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
-                    }`}
-                  >
-                    S3 Standard-IA
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTierTab('Archive')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeTierTab === 'Archive'
-                        ? 'bg-[#010101] text-white'
-                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
-                    }`}
-                  >
-                    S3 Glacier Flexible Retrieval
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTierTab('Hot')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeTierTab === 'Hot'
-                        ? 'bg-[#010101] text-white'
-                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
-                    }`}
-                  >
-                    Hot
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTierTab('Cold')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeTierTab === 'Cold'
-                        ? 'bg-[#010101] text-white'
-                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
-                    }`}
-                  >
-                    Cold
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTierTab('Archive')}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeTierTab === 'Archive'
-                        ? 'bg-[#010101] text-white'
-                        : 'bg-[#F9F4EE] text-[#4F4F4E] hover:bg-[#E5DDD1]'
-                    }`}
-                  >
-                    Archive
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Input Parameters based on Provider and Tier */}
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {activeProvider === 'AWS' && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-medium text-[#010101]">
-                      PUT/COPY/POST/LIST Requests
-                    </label>
-                    <input
-                      type="number"
-                      value={Number(getAdditionalCostValue('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'putRequests')) || 0}
-                      onChange={(e) => updateAdditionalCost('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'putRequests', Number(e.target.value))}
-                      className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                      placeholder="0"
-                      min="0"
-                      step="1"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-medium text-[#010101]">
-                      GET/SELECT Requests
-                    </label>
-                    <input
-                      type="number"
-                      value={Number(getAdditionalCostValue('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'getRequests')) || 0}
-                      onChange={(e) => updateAdditionalCost('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'getRequests', Number(e.target.value))}
-                      className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                      placeholder="0"
-                      min="0"
-                      step="1"
-                    />
-                  </div>
-                  {(activeTierTab === 'Cold' || activeTierTab === 'Archive') && (
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-medium text-[#010101]">
-                        Data Retrieval (GB)
-                      </label>
-                      <input
-                        type="number"
-                        value={Number(getAdditionalCostValue('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'dataRetrieved')) || 0}
-                        onChange={(e) => updateAdditionalCost('AWS', activeTierTab.toLowerCase() as 'hot' | 'cold' | 'archive', 'dataRetrieved', Number(e.target.value))}
-                        className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                        placeholder="0"
-                        min="0"
-                        step="1"
-                      />
-                    </div>
-                  )}
-                  {activeTierTab === 'Archive' && (
-                    <>
-                      <div className="flex items-center justify-between gap-2">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Data Retrieval Requests
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={String(getAdditionalCostValue('AWS', 'archive', 'retrievalType') || 'Standard')}
-                            onChange={(e) => updateAdditionalCost('AWS', 'archive', 'retrievalType', e.target.value)}
-                            className="w-24 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          >
-                            <option value="Standard">Standard</option>
-                            <option value="Expedited">Expedited</option>
-                          </select>
-                          <input
-                            type="number"
-                            value={Number(getAdditionalCostValue('AWS', 'archive', 'retrievalRequests')) || 0}
-                            onChange={(e) => updateAdditionalCost('AWS', 'archive', 'retrievalRequests', Number(e.target.value))}
-                            className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                            placeholder="0"
-                            min="0"
-                            step="1"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {activeProvider === 'Azure' && (
-                <>
-                  {activeTierTab === 'Hot' && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Read Operations (per 10,000)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'readOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'readOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Write Operations (per 10,000)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'writeOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'writeOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Query Acceleration - Data Scanned (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'queryDataScanned')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'queryDataScanned', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Query Acceleration - Data Returned (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'queryDataReturned')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'queryDataReturned', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Iterative Read Operations (per 10,000)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'iterativeReadOps')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'iterativeReadOps', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Iterative Write Operations (per 100)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'iterativeWriteOps')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'iterativeWriteOps', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Other Operations (per 10,000)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'hot', 'otherOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'hot', 'otherOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                    </>
-                  )}
-                  {activeTierTab === 'Cold' && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Read Operations (per 10,000)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'cold', 'readOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'readOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Write Operations (per 10,000)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'cold', 'writeOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'writeOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Query Acceleration - Data Scanned (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'cold', 'queryDataScanned')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'queryDataScanned', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Query Acceleration - Data Returned (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'cold', 'queryDataReturned')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'queryDataReturned', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Iterative Write Operations (per 100)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'cold', 'iterativeWriteOps')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'iterativeWriteOps', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Data Retrieval (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'cold', 'dataRetrieved')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'cold', 'dataRetrieved', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                    </>
-                  )}
-                  {activeTierTab === 'Archive' && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Data Transfer Out (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'dataTransferOut')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'dataTransferOut', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Write Operations
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'writeOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'writeOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Read Operations
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'readOperations')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'readOperations', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          High Priority Read Operations (per 100)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'highPriorityRead')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'highPriorityRead', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          High Priority Retrieval (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'highPriorityRetrieval')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'highPriorityRetrieval', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Iterative Write Operations (per 100)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'iterativeWriteOps')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'iterativeWriteOps', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-medium text-[#010101]">
-                          Data Retrieved (GB)
-                        </label>
-                        <input
-                          type="number"
-                          value={Number(getAdditionalCostValue('Azure', 'archive', 'dataRetrieved')) || 0}
-                          onChange={(e) => updateAdditionalCost('Azure', 'archive', 'dataRetrieved', Number(e.target.value))}
-                          className="w-32 px-2 py-1 bg-[#F9F4EE] border border-[#E5DDD1] rounded-lg text-xs text-[#010101] focus:outline-none focus:ring-1 focus:ring-[#010101] focus:border-[#010101]"
-                          placeholder="0"
-                          min="0"
-                          step="1"
-                        />
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-        </div>
-
-          {/* Back Button */}
-          <div className="mt-6 flex justify-start">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="px-6 py-2 bg-[#F9F4EE] text-[#010101] border border-[#E5DDD1] rounded-lg text-xs font-semibold hover:bg-[#E5DDD1] transition-colors flex items-center gap-2"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
