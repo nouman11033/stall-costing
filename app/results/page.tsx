@@ -10,6 +10,7 @@ import {
 } from '@/lib/calculator';
 import type { BudgetInput } from '@/lib/calculator';
 import ResultsDisplay from '@/components/ResultsDisplay';
+import BrandLogo from '@/components/BrandLogo';
 import { ArrowLeft } from 'lucide-react';
 import { convertUSDToINR } from '@/lib/pricing';
 import { lookRecommendationScore } from '@/lib/qualityLatency';
@@ -126,6 +127,7 @@ export default function ResultsPage() {
 
   return (
     <div className="min-h-screen relative bg-[#E5DDD1] overflow-hidden">
+      <BrandLogo />
       <div
         className="absolute inset-0 opacity-50"
         style={{
@@ -146,7 +148,7 @@ export default function ResultsPage() {
         <div className="absolute w-8 h-8 bg-[#D4CCC0]" style={{ top: '50%', right: '4%' }} />
       </div>
 
-      <main className="relative z-10 min-h-screen px-8 py-8">
+      <main className="relative z-10 min-h-screen px-8 py-8 pt-20">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 flex items-center gap-4">
             <button

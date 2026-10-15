@@ -129,7 +129,6 @@ input[type="number"].show-spinner::-webkit-outer-spin-button {
   z-index: 20;
   box-shadow: none;
   transition: transform 0.2s ease;
-  margin-top: -2px;
   position: relative;
 }
 

@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { BudgetInput, calculateCombinations } from '@/lib/calculator';
 import BudgetForm, { defaultWorkloadState, WorkloadState } from '@/components/BudgetForm';
 import StorageInput, { InfraInput, defaultInfraInput } from '@/components/StorageInput';
+import BrandLogo from '@/components/BrandLogo';
 
 // Animated Background Fill Text Component
 function AnimatedBackgroundText() {
@@ -138,6 +139,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      <BrandLogo />
       <div
         className={`absolute inset-0 bg-[#E5DDD1] transition-opacity duration-300 ${isTransitioning ? 'opacity-100' : 'opacity-0'}`}
       >
