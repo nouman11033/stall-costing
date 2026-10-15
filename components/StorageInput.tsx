@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Server, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react';
 import type { BudgetInput } from '@/lib/calculator';
 import { defaultBudgetInput, deriveWorkloadDerived } from '@/lib/calculator';
 import type { WorkloadState } from '@/components/BudgetForm';
@@ -381,7 +381,7 @@ export default function StorageInput({ infraInput, onChange, workload }: Storage
         <div className="bg-white border-b border-[#E5DDD1] p-6 flex-shrink-0 relative z-10">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-[#010101] rounded-xl flex items-center justify-center">
-              <Server className="w-5 h-5 text-white" />
+              <span className="text-white text-lg font-semibold leading-none">B</span>
             </div>
             <div>
               <h2

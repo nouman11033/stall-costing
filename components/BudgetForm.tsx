@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { ImageIcon } from 'lucide-react';
 import { BudgetInput, defaultBudgetInput } from '@/lib/calculator';
 import type { StorageStackId } from '@/lib/pricing';
 import {
@@ -116,7 +115,7 @@ export default function BudgetForm({
         <div className="bg-white border-b border-[#E5DDD1] p-6 flex-shrink-0">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-[#010101] rounded-xl flex items-center justify-center">
-              <ImageIcon className="w-5 h-5 text-white" />
+              <span className="text-white text-lg font-semibold leading-none">A</span>
             </div>
             <h2
               className="text-2xl font-medium text-[#010101]"
